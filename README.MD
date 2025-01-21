@@ -14,7 +14,7 @@ A collection of security-focused functions and pipelines for OpenWebUI, designed
 
 ## Available Functions
 
-### TokenGuard (`function/tokenGuard.py`)
+### [TokenGuard](https://github.com/christian-taillon/open-webui-pipelines/blob/main/function/tokenGuard.py)
 **Status: Proof of Concept 0.0.2**
 - Early development phase
 - Experimental implementation for token management
@@ -23,13 +23,13 @@ A collection of security-focused functions and pipelines for OpenWebUI, designed
 ### Manifold Pipelines
 Located in the `manifoldPipe/` directory:
 
-#### Anthropic Pipeline (`anthropic.py`)
+#### [Anthropic Pipeline](https://github.com/christian-taillon/open-webui-pipelines/blob/main/manifoldPipe/anthropic.py)
 **Status: Production Ready 0.3.17**
 - Full implementation for security analysis
 - Integrated with Anthropic's AI models
 - Production-ready but requires thorough testing in your environment
 
-#### Cloudflare WorkerAI Pipeline (`cloudflare.py`)
+#### [Cloudflare WorkerAI Pipeline](https://github.com/christian-taillon/open-webui-pipelines/blob/main/manifoldPipe/cloudflare.py)
 **Status: Beta v0.1.6**
 - Early release version
 - Active development and improvements ongoing
@@ -45,8 +45,7 @@ Located in the `manifoldPipe/` directory:
    - Save the function
 
 ### CloudFlare WorkerAI Integration
-For CloudFlare WorkerAI specific implementations, visit:
-[https://openwebui.com/f/christiant/cloudfare_workerai/](https://openwebui.com/f/christiant/cloudfare_workerai/)
+For CloudFlare WorkerAI specific implementations, visit our [CloudFlare WorkerAI Guide](https://openwebui.com/f/christiant/cloudfare_workerai/)
 
 ## Function Selection Guide
 
