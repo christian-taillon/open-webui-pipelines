@@ -6,9 +6,9 @@ A collection of security-focused functions and pipelines for OpenWebUI, designed
 
 | Function            | Status              | Description                              |
 | ------------------- | ------------------- | ---------------------------------------- |
-| TokenGuard          | 🧪 Proof of Concept  | Early development, experimental use only |
-| Anthropic Pipeline  | ✅ Production Ready* | Full implementation available            |
-| Cloudflare WorkerAI | 🚧 Beta (v0.x)       | Early release, under active development  |
+| TokenGuard          | Proof of Concept  | Early development, experimental use only |
+| Anthropic Pipeline  | Production Ready* | Full implementation available            |
+| Cloudflare WorkerAI | Beta (v0.x)       | Early release, under active development  |
 
 *Review and run at your own risk
 
@@ -45,7 +45,7 @@ Located in the `manifoldPipe/` directory:
    - Save the function
 
 ### CloudFlare WorkerAI Integration
-For CloudFlare WorkerAI specific implementations, visit our [CloudFlare WorkerAI Guide](https://openwebui.com/f/christiant/cloudfare_workerai/)
+For CloudFlare WorkerAI, you can also obtain this from OpenWebUI's extension community site: [CloudFlare WorkerAI](https://openwebui.com/f/christiant/cloudfare_workerai/)
 
 ## Function Selection Guide
 
@@ -66,11 +66,7 @@ Choose functions based on your security team's needs and stability requirements:
 
 ## Contributing
 
-Feel free to contribute to this project by submitting pull requests or creating issues for bugs and feature requests.
-
-## License
-
-This project is licensed under the terms included in the LICENSE file.
+Feel free to contribute to this project by submitting pull requests or creating issues for bugs and feature requests. I will update the content on [Open WebUI](https://openwebui.com/) manually. 
 
 ## Author
 
