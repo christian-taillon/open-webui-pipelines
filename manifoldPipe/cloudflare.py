@@ -4,7 +4,7 @@ authors: christian-taillon
 author_url: https://christiant.io
 funding_url: https://github.com/open-webui
 version: 0.1.6
-required_open_webui_version: 0.3.17
+required_open_webui_version: 0.1.6
 license: MIT
 """
 

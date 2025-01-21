@@ -2,20 +2,38 @@
 
 A collection of security-focused functions and pipelines for OpenWebUI, designed to enhance security team operations.
 
-## Overview
+## Status Overview
 
-This repository contains custom functions and pipelines that can be integrated into OpenWebUI instances, specifically tailored for security teams. These tools help automate and streamline security operations through AI-powered workflows.
+| Function            | Status              | Description                              |
+| ------------------- | ------------------- | ---------------------------------------- |
+| TokenGuard          | 🧪 Proof of Concept  | Early development, experimental use only |
+| Anthropic Pipeline  | ✅ Production Ready* | Full implementation available            |
+| Cloudflare WorkerAI | 🚧 Beta (v0.x)       | Early release, under active development  |
+
+*Review and run at your own risk
 
 ## Available Functions
 
 ### TokenGuard (`function/tokenGuard.py`)
-A security function that helps manage and protect API tokens and sensitive credentials within OpenWebUI.
+**Status: Proof of Concept 0.0.2**
+- Early development phase
+- Experimental implementation for token management
+- Not recommended for production use
 
 ### Manifold Pipelines
 Located in the `manifoldPipe/` directory:
 
-- **Anthropic Pipeline** (`anthropic.py`): Integration with Anthropic's AI models for security analysis
-- **Cloudflare WorkerAI Pipeline** (`cloudflare.py`): Leverage Cloudflare's WorkerAI capabilities for security operations
+#### Anthropic Pipeline (`anthropic.py`)
+**Status: Production Ready 0.3.17**
+- Full implementation for security analysis
+- Integrated with Anthropic's AI models
+- Production-ready but requires thorough testing in your environment
+
+#### Cloudflare WorkerAI Pipeline (`cloudflare.py`)
+**Status: Beta v0.1.6**
+- Early release version
+- Active development and improvements ongoing
+- Basic functionality available
 
 ## Installation Instructions
 
@@ -32,11 +50,20 @@ For CloudFlare WorkerAI specific implementations, visit:
 
 ## Function Selection Guide
 
-Choose functions based on your security team's needs:
+Choose functions based on your security team's needs and stability requirements:
 
-- **TokenGuard**: Implement if you need enhanced token security and credential management
-- **Anthropic Pipeline**: Use for advanced security analysis and threat detection
-- **Cloudflare WorkerAI Pipeline**: Implement for edge-based security processing and analysis
+- **TokenGuard**: 
+  - Experimental use only
+  - Suitable for testing and development environments
+
+- **Anthropic Pipeline**: 
+  - Ready for production implementation
+  - Requires review and proper testing in your environment
+
+- **Cloudflare WorkerAI Pipeline**: 
+  - Beta implementation
+  - Suitable for non-critical deployments
+  - Expect updates and changes
 
 ## Contributing
 
@@ -56,4 +83,4 @@ For support or questions, please open an issue in the repository or contact thro
 
 ---
 
-**Note**: These functions are specifically designed for security team operations. Please review the code and ensure it meets your organization's security requirements before implementation.
+**⚠️ Important Notice**: These functions are specifically designed for security team operations. Please review the code and ensure it meets your organization's security requirements before implementation. Pay attention to the status of each function when deciding on implementation.
