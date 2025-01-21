@@ -3,7 +3,7 @@ title: SecureTokenization Filter
 author: christian-taillon
 author_url: https://github.com/christian-taillon
 funding_url: https://github.com/christian-taillon
-version: 0.1
+version: 0.2
 license: MIT
 description: Beta WIP Not Ready for Production Tokenizes sensitive information in prompts and detokenizes in responses
 requirements: cryptography,requests
