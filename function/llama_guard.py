@@ -9,7 +9,6 @@ description: Content filtering using Llama Guard model
 requirements: pydantic,requests
 """
 
-
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import requests
@@ -43,19 +42,9 @@ class Filter:
     def __init__(self):
         self.valves = self.Valves()
         self.safety_categories = {
-            "S1": "Violent Crimes",
-            "S2": "Non-Violent Crimes",
-            "S3": "Sex-Related Crimes",
-            "S4": "Child Sexual Exploitation",
-            "S5": "Defamation",
-            "S6": "Specialized Advice",
-            "S7": "Privacy",
-            "S8": "Intellectual Property",
-            "S9": "Indiscriminate Weapons",
-            "S10": "Hate",
-            "S11": "Suicide & Self-Harm",
-            "S12": "Sexual Content",
-            "S13": "Elections",
+            field: self.Valves.__fields__[field].description
+            for field in self.Valves.__fields__
+            if field.startswith("S")
         }
 
     def check_content_safety(self, content: str) -> tuple[bool, str]:
