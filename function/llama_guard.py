@@ -9,6 +9,7 @@ description: Content filtering using Llama Guard model
 requirements: pydantic,requests
 """
 
+
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import requests
@@ -83,18 +84,21 @@ class Filter:
         if not messages:
             return body
 
-        last_message = messages[-1]["content"]
-        is_safe, category = self.check_content_safety(last_message)
+        # Check all user messages in the history for safety
+        safe_messages = []
+        for msg in messages:
+            if msg["role"] == "system":
+                safe_messages.append(msg)
+                continue
 
-        if not is_safe:
-            # Extract category code (S1, S2, etc.) from LlamaGuard output
-            category_code = category.split(":")[0].strip()
-
-            # Check if this category is enabled in valves
-            if hasattr(self.valves, category_code) and getattr(
-                self.valves, category_code
-            ):
-                safety_prompt = f"""Message Blocked by LlamaGuard
+            if msg["role"] == "user":
+                is_safe, category = self.check_content_safety(msg["content"])
+                if not is_safe:
+                    category_code = category.split(":")[0].strip()
+                    if hasattr(self.valves, category_code) and getattr(
+                        self.valves, category_code
+                    ):
+                        safety_prompt = f"""Message Blocked by LlamaGuard
     
     LlamaGuard Output:
     unsafe
@@ -105,8 +109,15 @@ class Filter:
     
     Please explain that this message was blocked based on the LlamaGuard output and safety category matched from above."""
 
-                messages[-1]["content"] = safety_prompt
-                body["messages"] = messages
-            # If category is disabled, treat as safe and proceed with original message
+                        safe_messages = [
+                            msg for msg in safe_messages if msg["role"] == "system"
+                        ]
+                        safe_messages.append({"role": "user", "content": safety_prompt})
+                        body["messages"] = safe_messages
+                        return body
 
+            # Message is either safe or from assistant
+            safe_messages.append(msg)
+
+        body["messages"] = safe_messages
         return body
