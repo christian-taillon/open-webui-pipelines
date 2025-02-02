@@ -7,6 +7,7 @@ A collection of security-focused functions and pipelines for OpenWebUI, designed
 | Function            | Status              | Description                              |
 | ------------------- | ------------------- | ---------------------------------------- |
 | TokenGuard          | Proof of Concept  | Early development, experimental use only |
+| LlamaGuard          | Proof of Concept  | Content filtering and safety analysis    |
 | Anthropic Pipeline  | Production Ready* | Full implementation available            |
 | Cloudflare WorkerAI | Beta (v0.x)       | Early release, under active development  |
 
@@ -19,6 +20,12 @@ A collection of security-focused functions and pipelines for OpenWebUI, designed
 - Early development phase
 - Experimental implementation for token management
 - Not recommended for production use
+
+### [LlamaGuard Filter](https://github.com/christian-taillon/open-webui-pipelines/blob/main/function/llama_guard.py)
+**Status: Production Ready 0.0.2**
+- Content filtering using Llama Guard model
+- Configurable safety categories (S1-S13)
+- Provides detailed safety violation explanations
 
 ### Manifold Pipelines
 Located in the `manifoldPipe/` directory:
@@ -54,6 +61,11 @@ Choose functions based on your security team's needs and stability requirements:
 - **TokenGuard**: 
   - Experimental use only
   - Suitable for testing and development environments
+
+- **LlamaGuard Filter**:
+  - Production-ready content filtering with configurable safety categories
+  - Requires Ollama installation and LlamaGuard model
+  - Suitable for automated content moderation and safety compliance
 
 - **Anthropic Pipeline**: 
   - Ready for production implementation
