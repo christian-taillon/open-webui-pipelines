@@ -87,17 +87,18 @@ class Filter:
                     if hasattr(self.valves, category_code) and getattr(
                         self.valves, category_code
                     ):
+                        matched_category = {
+                            category_code: self.safety_categories[category_code]
+                        }
                         safety_prompt = f"""Message Blocked by LlamaGuard
-    
-    LlamaGuard Output:
-    unsafe
-    {category}
-    
-    Safety Categories Reference:
-    {json.dumps(self.safety_categories, indent=2)}
-    
-    Please explain that this message was blocked based on the LlamaGuard output and safety category matched from above."""
+LlamaGuard Output:
+unsafe
+{category}
 
+Safety Category Matched:
+{json.dumps(matched_category, indent=2)}
+
+Explain conciesly that this message was blocked based on the provided saftey category. """
                         safe_messages = [
                             msg for msg in safe_messages if msg["role"] == "system"
                         ]
