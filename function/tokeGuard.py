@@ -3,9 +3,9 @@ title: SecureTokenization Filter
 author: christian-taillon
 author_url: https://github.com/christian-taillon
 funding_url: https://github.com/christian-taillon
-version: 0.2
+version: 0.1
 license: MIT
-description: Beta WIP Not Ready for Production Tokenizes sensitive information in prompts and detokenizes in responses
+description: WIP : Tokenizes sensitive information in prompts and detokenizes in responses
 requirements: cryptography,requests
 """
 
@@ -17,15 +17,17 @@ from cryptography.fernet import Fernet
 from typing import Optional
 from pydantic import BaseModel, Field
 
+
 class Filter:
     # Default patterns as a JSON object
+    # Add your own patterns here
     default_patterns = {
         "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
         "phone": r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b",
         "ssn": r"\b\d{3}-\d{2}-\d{4}\b",
         "host": r"(?i)\b((?:(?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+(?:[a-zA-Z]{2,}))\b",
         "ipv4": r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b",
-        "url": r"https?://[^\s<>\"]+|www\.[^\s<>\"]+"
+        "url": r"https?://[^\s<>\"]+|www\.[^\s<>\"]+",
     }
 
     class Valves(BaseModel):
@@ -33,11 +35,11 @@ class Filter:
         enabled_for_admins: bool = Field(
             default=True, description="Enable tokenization for admin users"
         )
-        protect_sensitive: bool = Field(
+        enable_detokenization: bool = Field(
             default=True, description="Enable protection of sensitive data"
         )
         github_url: str = Field(
-            default="", description="RAW GitHub URL with Custom Regex"
+            default="", description="NOT IMPLEMENTED YET - RAW GitHub URL with Custom Regex"
         )
 
     def __init__(self):
@@ -49,7 +51,7 @@ class Filter:
         self.token_map = {}
         self.token_count = 0
         self.patterns = {}
-        
+
         # Load patterns based on whether github_url is provided
         self.load_patterns()
 
@@ -117,16 +119,22 @@ class Filter:
 
                         content = content.replace(matched_text, token)
 
-                message["content"] = content + " [FILTER ENGAGED]"
+                message["content"] = (
+                    "Preserve the formatting of the token values."
+                    + content
+                    + " [FILTER ENGAGED]"
+                )
                 if self.DEBUG_GATEWAY:
-                    message["content"] += f"\nPatterns active: {list(self.patterns.keys())}"
+                    message[
+                        "content"
+                    ] += f"\nPatterns active: {list(self.patterns.keys())}"
                     message["content"] += f"\nMatches found: {matches_found}"
                     message["content"] += f"\nTokens created: {len(self.token_map)}"
 
         return body
 
     def outlet(self, body: dict, __user__: Optional[dict] = None) -> dict:
-        if self.valves.protect_sensitive:
+        if self.valves.enable_detokenization:
             if "messages" in body:
                 for message in body["messages"]:
                     if "content" in message:
