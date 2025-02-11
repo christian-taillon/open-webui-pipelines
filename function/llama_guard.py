@@ -30,11 +30,6 @@ class Filter:
         S11: bool = Field(default=True, description="Suicide & Self-Harm")
         S12: bool = Field(default=True, description="Sexual Content")
         S13: bool = Field(default=True, description="Elections")
-
-        openai_api_base: str = Field(
-            default="http://host.docker.internal:11434/v1",
-            description="Base URL for Ollama API",
-        )
         llama_guard_model: str = Field(
             default="llama-guard3:8b", description="LlamaGuard Model Selection"
         )
