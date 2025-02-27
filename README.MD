@@ -14,23 +14,24 @@ A collection of security-focused functions and pipelines for OpenWebUI, designed
 
 *Review and run at your own risk
 
-### Manifold Pipelines
+## Manifold Pipelines
 Located in the `manifoldPipe/` directory:
 
-#### [Anthropic Pipeline](https://openwebui.com/f/justinrahb/anthropic)
+### [Anthropic Pipeline](https://openwebui.com/f/justinrahb/anthropic)
 **Status: Production Ready 0.3.17**
 - Full implementation for security analysis
 - Integrated with Anthropic's AI models
 - Production-ready but requires thorough testing in your environment
-[BETA: WIP Anthropic Pipeline with Sonnet3.7](https://openwebui.com/f/christiant/anthropic_manifold_pipe_sonnet_3_7)
+- [BETA: WIP Anthropic Pipeline with Sonnet3.7](https://openwebui.com/f/christiant/anthropic_manifold_pipe_sonnet_3_7)
 
-#### [Cloudflare WorkerAI Pipeline](https://openwebui.com/f/christiant/cloudfare_workerai)
+### [Cloudflare WorkerAI Pipeline](https://openwebui.com/f/christiant/cloudfare_workerai)
 **Status: Beta v0.1.6**
 - Early release version
 - Active development and improvements ongoing
 - Basic functionality available
 
-## Available Functions
+## Functions
+Located in the `function/` directory:
 All function code is available in this repository. The links point to the corresponding plugins in the OpenWebUI community. While these functions are developed for compatibility with OpenWebUI pipelines, they can be adapted to other frameworks with minimal modifications.
 
 ### [TokenGuard](https://openwebui.com/f/christiant/tokenguard)
