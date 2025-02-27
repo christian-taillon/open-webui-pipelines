@@ -4,43 +4,46 @@ A collection of security-focused functions and pipelines for OpenWebUI, designed
 
 ## Status Overview
 
-| Function            | Status              | Description                              |
-| ------------------- | ------------------- | ---------------------------------------- |
-| TokenGuard          | Proof of Concept  | Early development, experimental use only |
-| LlamaGuard          | Proof of Concept  | Content filtering and safety analysis    |
-| Anthropic Pipeline  | Production Ready* | Full implementation available            |
-| Cloudflare WorkerAI | Beta (v0.x)       | Early release, under active development  |
+| Function                   | Status              | Description                              |
+| -------------------------- | ------------------- | ---------------------------------------- |
+| TokenGuard                 | Proof of Concept    | Early development, experimental use only |
+| LlamaGuard                 | Proof of Concept    | Content filtering and safety analysis    |
+| Anthropic Pipeline         | Production Ready*   | Full implementation available            |
+| Anthropic Pipeline Sonnet3.7 | Beta (v0.2.x)     | Enhanced capabilities, under testing     |
+| Cloudflare WorkerAI        | Beta (v0.x)         | Early release, under active development  |
 
 *Review and run at your own risk
 
-## Available Functions
+### Manifold Pipelines
+Located in the `manifoldPipe/` directory:
 
-### [TokenGuard](https://github.com/christian-taillon/open-webui-pipelines/blob/main/function/tokenGuard.py)
+#### [Anthropic Pipeline](https://openwebui.com/f/justinrahb/anthropic)
+**Status: Production Ready 0.3.17**
+- Full implementation for security analysis
+- Integrated with Anthropic's AI models
+- Production-ready but requires thorough testing in your environment
+[BETA: WIP Anthropic Pipeline with Sonnet3.7](https://openwebui.com/f/christiant/anthropic_manifold_pipe_sonnet_3_7)
+
+#### [Cloudflare WorkerAI Pipeline](https://openwebui.com/f/christiant/cloudfare_workerai)
+**Status: Beta v0.1.6**
+- Early release version
+- Active development and improvements ongoing
+- Basic functionality available
+
+## Available Functions
+All function code is available in this repository. The links point to the corresponding plugins in the OpenWebUI community. While these functions are developed for compatibility with OpenWebUI pipelines, they can be adapted to other frameworks with minimal modifications.
+
+### [TokenGuard](https://openwebui.com/f/christiant/tokenguard)
 **Status: Proof of Concept 0.0.2**
 - Early development phase
 - Experimental implementation for token management
 - Not recommended for production use
 
-### [LlamaGuard Filter](https://github.com/christian-taillon/open-webui-pipelines/blob/main/function/llama_guard.py)
+### [LlamaGuard Filter](https://openwebui.com/f/christiant/llamagaurd)
 **Status: Production Ready 0.0.2**
 - Content filtering using Llama Guard model
 - Configurable safety categories (S1-S13)
 - Provides detailed safety violation explanations
-
-### Manifold Pipelines
-Located in the `manifoldPipe/` directory:
-
-#### [Anthropic Pipeline](https://github.com/christian-taillon/open-webui-pipelines/blob/main/manifoldPipe/anthropic.py)
-**Status: Production Ready 0.3.17**
-- Full implementation for security analysis
-- Integrated with Anthropic's AI models
-- Production-ready but requires thorough testing in your environment
-
-#### [Cloudflare WorkerAI Pipeline](https://github.com/christian-taillon/open-webui-pipelines/blob/main/manifoldPipe/cloudflare.py)
-**Status: Beta v0.1.6**
-- Early release version
-- Active development and improvements ongoing
-- Basic functionality available
 
 ## Installation Instructions
 
@@ -90,4 +93,14 @@ For support or questions, please open an issue in the repository or contact thro
 
 ---
 
-**⚠️ Important Notice**: These functions are specifically designed for security team operations. Please review the code and ensure it meets your organization's security requirements before implementation. Pay attention to the status of each function when deciding on implementation.
+## Security Disclaimer
+
+The security functions provided in this repository come with varying levels of maturity and testing:
+
+- **Proof of Concept (PoC)** functions are experimental and may contain bugs or security flaws. They should never be relied upon as your sole security mechanism.
+- **Beta** functions have undergone limited testing but may still contain unknown issues.
+- Even **Production Ready** functions should be thoroughly tested in your specific environment before deployment.
+
+These tools are meant to enhance your security posture but should be implemented as part of a defense-in-depth strategy. The author and contributors are not responsible for security incidents resulting from the implementation of these functions.
+
+Users should conduct their own security reviews of this code before implementation in sensitive environments.
