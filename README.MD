@@ -11,18 +11,19 @@ A collection of security-focused functions and pipelines for OpenWebUI, designed
 | Anthropic Pipeline         | Production Ready*   | Full implementation available            |
 | Anthropic Pipeline Sonnet3.7 | Beta (v0.2.x)     | Enhanced capabilities, under testing     |
 | Cloudflare WorkerAI        | Beta (v0.x)         | Early release, under active development  |
+| ThreatConnect IOC Enrichment | Beta (v0.7) | Indicator enrichment using ThreatConnect |
 
 *Review and run at your own risk
 
 ## Manifold Pipelines
 Located in the `manifoldPipe/` directory:
 
-### [Anthropic Pipeline](https://openwebui.com/f/justinrahb/anthropic)
+### [Anthropic Manifold Pipe](https://openwebui.com/f/justinrahb/anthropic)
 **Status: Production Ready 0.3.17**
 - Full implementation for security analysis
 - Integrated with Anthropic's AI models
 - Production-ready but requires thorough testing in your environment
-- [BETA: WIP Anthropic Pipeline with Sonnet3.7](https://openwebui.com/f/christiant/anthropic_manifold_pipe_sonnet_3_7)
+- [BETA: Anthropic Manifold Pipe Beta](https://openwebui.com/f/christiant/anthropic_manifold_pipe_sonnet_3_7)
 
 ### [Cloudflare WorkerAI Pipeline](https://openwebui.com/f/christiant/cloudfare_workerai)
 **Status: Beta v0.1.6**
@@ -45,6 +46,23 @@ All function code is available in this repository. The links point to the corres
 - Content filtering using Llama Guard model
 - Configurable safety categories (S1-S13)
 - Provides detailed safety violation explanations
+
+### [ThreatConnect IOC Enrichment](https://openwebui.com/f/christiant/threatconnect_ioc_enrichment)
+**Status: Production Ready v0.7**
+- Automatically extracts and enriches indicators of compromise
+- Uses ThreatConnect's threat intelligence platform
+- Provides detailed threat intelligence enrichment for indicators found in user messages
+- Supports both token and access key authentication methods
+
+## Tools
+Located in the `tools/` directory:
+
+### [Enhanced Web Scrape](https://openwebui.com/t/christiant/endgame_web_scrape)
+**Status: Beta v0.1.2**
+- Improved web scraping tool using Jina Reader
+- Features better filtering, user configuration, and UI feedback
+- Supports retries and batch scraping capabilities
+- Clean content option to reduce token usage
 
 ## Installation Instructions
 
@@ -71,6 +89,11 @@ Choose functions based on your security team's needs and stability requirements:
   - Requires Ollama installation and LlamaGuard model
   - Suitable for automated content moderation and safety compliance
 
+- **ThreatConnect IOC Enrichment**:
+  - Production-ready threat intelligence integration
+  - Requires ThreatConnect API access (token or access key)
+  - Automatically identifies and enriches indicators of compromise in user messages
+
 - **Anthropic Pipeline**: 
   - Ready for production implementation
   - Requires review and proper testing in your environment
@@ -79,6 +102,11 @@ Choose functions based on your security team's needs and stability requirements:
   - Beta implementation
   - Suitable for non-critical deployments
   - Expect updates and changes
+
+- **Enhanced Web Scrape Tool**:
+  - Beta implementation for improved web content extraction
+  - Useful for security research and threat intelligence gathering
+  - Configurable cleaning options to reduce token usage
 
 ## Contributing
 
