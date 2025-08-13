@@ -2,134 +2,205 @@
 
 A collection of security-focused functions and pipelines for OpenWebUI, designed to enhance security team operations.
 
+> [!NOTE]
+> This repository includes ready-to-use pipelines and functions plus visual demos. Use the callouts to find important details quickly.
+
+## Adding these custom Functions/Tools
+![LlamaGuard customization options](asset/LlamaGuard_customization-hq.gif) 
+
 ## Status Overview
 
-| Function                   | Status              | Description                              |
-| -------------------------- | ------------------- | ---------------------------------------- |
-| TokenGuard                 | Proof of Concept    | Early development, experimental use only |
-| LlamaGuard                 | Proof of Concept    | Content filtering and safety analysis    |
-| Anthropic Pipeline         | Production Ready*   | Full implementation available            |
-| Anthropic Pipeline Sonnet3.7 | Beta (v0.2.x)     | Enhanced capabilities, under testing     |
-| Cloudflare WorkerAI        | Beta (v0.x)         | Early release, under active development  |
-| ThreatConnect IOC Enrichment | Beta (v0.7) | Indicator enrichment using ThreatConnect |
+| Function / Pipeline                 | Status                      | Description                                  |
+| ----------------------------------- | --------------------------- | -------------------------------------------- |
+| TokenGuard                          | Proof of Concept (v0.0.2)   | Experimental token management utility        |
+| LlamaGuard Filter                   | Production Ready (v0.0.2)   | Content filtering and safety analysis        |
+| Anthropic Manifold Pipe             | Production Ready (0.3.17)   | Security analysis pipeline for Anthropic     |
+| Anthropic Manifold Pipe Sonnet 3.7  | Beta (v0.2.x)               | Enhanced capabilities, under testing         |
+| Cloudflare WorkerAI                 | Beta (v0.1.6)               | Early release pipeline using WorkerAI        |
+| ThreatConnect IOC Enrichment        | Production Ready (v0.7)     | Indicator enrichment using ThreatConnect     |
 
-*Review and run at your own risk
+*Always review code obtained from obscure repos and run at your own risk.*
+
+---
+
+## Quick Links
+- Repo layout: see "Repository Structure" below
+- Pipelines: manifoldPipe/
+- Functions: function/
+- Tools: tools/
+
+---
 
 ## Manifold Pipelines
-Located in the `manifoldPipe/` directory:
+Located in the `manifoldPipe/` directory.
 
-### [Anthropic Manifold Pipe](https://openwebui.com/f/justinrahb/anthropic)
-**Status: Production Ready 0.3.17**
-- Full implementation for security analysis
-- Integrated with Anthropic's AI models
-- Production-ready but requires thorough testing in your environment
-- [BETA: Anthropic Manifold Pipe Beta](https://openwebui.com/f/christiant/anthropic_manifold_pipe_sonnet_3_7)
+### Anthropic Manifold Pipe
+- File: manifoldPipe/anthropic.py
+- Status: Production Ready (0.3.17)
+- Purpose: General-purpose security analysis pipeline integrating with Anthropic models.
 
-### [Cloudflare WorkerAI Pipeline](https://openwebui.com/f/christiant/cloudfare_workerai)
-**Status: Beta v0.1.6**
-- Early release version
-- Active development and improvements ongoing
-- Basic functionality available
+> [!TIP]
+> If you want to experiment with newer Anthropic features, consider the Sonnet 3.7 beta pipeline (manifoldPipe/beta-anthropic.py) in a separate workspace to avoid affecting production runs.
+
+### Cloudflare WorkerAI Pipeline
+- File: manifoldPipe/cloudflare.py
+- Status: Beta (v0.1.6)
+- Purpose: Integrates Cloudflare WorkerAI capabilities into OpenWebUI pipelines.
+
+> [!NOTE]
+> The community plugin slug may show as “cloudfare” on some community pages, but the provider is Cloudflare.
+
+---
 
 ## Functions
-Located in the `function/` directory:
-All function code is available in this repository. The links point to the corresponding plugins in the OpenWebUI community. While these functions are developed for compatibility with OpenWebUI pipelines, they can be adapted to other frameworks with minimal modifications.
+Located in the `function/` directory. Copy the .py contents into OpenWebUI -> Workspaces -> Functions to add them to your instance.
 
-### [TokenGuard](https://openwebui.com/f/christiant/tokenguard)
-**Status: Proof of Concept 0.0.2**
-- Early development phase
-- Experimental implementation for token management
-- Not recommended for production use
+### TokenGuard
+- File: function/tokenGuard.py
+- Status: Proof of Concept (v0.0.2)
+- Purpose: Experimental token management and related utilities.
 
-### [LlamaGuard Filter](https://openwebui.com/f/christiant/llamagaurd)
-**Status: Production Ready 0.0.2**
-- Content filtering using Llama Guard model
-- Configurable safety categories (S1-S13)
-- Provides detailed safety violation explanations
+![TokenGuard demo](asset/tokenGuard.gif)
 
-### [ThreatConnect IOC Enrichment](https://openwebui.com/f/christiant/threatconnect_ioc_enrichment)
-**Status: Production Ready v0.7**
-- Automatically extracts and enriches indicators of compromise
-- Uses ThreatConnect's threat intelligence platform
-- Provides detailed threat intelligence enrichment for indicators found in user messages
-- Supports both token and access key authentication methods
+> [!CAUTION]
+> TokenGuard is experimental. Use only in test/dev environments and audit the code before any production usage.
+
+### LlamaGuard Filter
+- File: function/llama_guard.py
+- Status: Production Ready (v0.0.2)
+- Purpose: Content filtering and safety enforcement using LlamaGuard.
+
+![LlamaGuard in action](asset/LlamaGuard-hq.gif)
+
+> [!IMPORTANT]
+> LlamaGuard requires a compatible local model runtime (for example, Ollama + LlamaGuard model). Configure safety categories (S1–S13) according to your policies.
+
+### ThreatConnect IOC Enrichment
+- File: function/threatconnect_ioc_enrichment.py
+- Status: Production Ready (v0.7)
+- Purpose: Automatically extract and enrich Indicators of Compromise (IOCs) using ThreatConnect APIs.
+
+![ThreatConnect IOC Enrichment illustration](asset/tim_cti_analyst.png)
+
+> [!NOTE]
+> The `function/threatconnect_ioc_enrichment.py` file contains formatting helpers such as `format_indicator_v2` that normalize ThreatConnect v2 responses into fields (tc_id, owner, first_seen, last_modified, confidence, rating, threat_rating, threat_confidence). It also contains authentication helper(s) like `generate_tc_auth_headers` — review that function to understand authentication header construction for ThreatConnect API calls.
+
+> [!TIP]
+> Open `function/threatconnect_ioc_enrichment.py` to confirm which ThreatConnect API fields are mapped and to extend mappings if you need additional fields in the LLM output.
+
+---
 
 ## Tools
-Located in the `tools/` directory:
+Located in the `tools/` directory.
 
-### [Enhanced Web Scrape](https://openwebui.com/t/christiant/endgame_web_scrape)
-**Status: Beta v0.1.2**
-- Improved web scraping tool using Jina Reader
-- Features better filtering, user configuration, and UI feedback
-- Supports retries and batch scraping capabilities
-- Clean content option to reduce token usage
+### Enhanced Web Scrape
+- File: tools/endgame_web_scrape.py
+- Status: Beta (v0.1.2)
+- Purpose: Improved web scraping with batching, retries, and cleaning options.
 
-## Installation Instructions
+![Enhanced Web Scrape UI](asset/web_scrape.png)
 
-1. Access your OpenWebUI instance
-2. Navigate to: Workspaces -> Functions -> New Function (+ Icon)
-3. Choose the function you want to implement:
-   - Copy the content of the desired `.py` file
-   - Paste it into the new function window
-   - Save the function
+> [!NOTE]
+> The scraper implements robust HTTP retries with exponential backoff. See the `_http_get` function in `tools/endgame_web_scrape.py` for details on handling 429/503 responses, honoring Retry-After headers, and retry logic.
 
-### CloudFlare WorkerAI Integration
-For CloudFlare WorkerAI, you can also obtain this from OpenWebUI's extension community site: [CloudFlare WorkerAI](https://openwebui.com/f/christiant/cloudfare_workerai/)
+> [!TIP]
+> Use the "Clean Content" option for long articles to reduce token consumption while preserving essential context.
+
+---
+
+## Installation / Usage
+
+1. Open your OpenWebUI instance.
+2. To add a function:
+   - Navigate to Workspaces -> Functions -> New Function (+)
+   - Copy the contents of the desired `.py` file from `function/` and paste into the new function editor.
+   - Save.
+3. To add a manifold pipeline:
+   - Import or recreate the pipeline under Manifold Pipelines, copying code from `manifoldPipe/*.py` as needed.
+4. For tools, you can reuse scripts or adapt them into functions/pipelines.
+
+> [!IMPORTANT]
+> Pipelines live under “Manifold Pipelines” and must be added separately from Functions.
+
+---
+
+## Repository Structure
+
+```
+./
+├── function/
+│   ├── llama_guard.py
+│   ├── threatconnect_ioc_enrichment.py
+│   └── tokenGuard.py
+├── manifoldPipe/
+│   ├── anthropic.py
+│   ├── beta-anthropic.py
+│   └── cloudflare.py
+├── tools/
+│   └── endgame_web_scrape.py
+├── asset/
+│   ├── LlamaGuard_customization-hq.gif
+│   ├── LlamaGuard-hq.gif
+│   ├── tim_cti_analyst.png
+│   ├── tokenGuard.gif
+│   └── web_scrape.png
+├── LICENSE
+└── README.MD
+```
+
+---
 
 ## Function Selection Guide
 
-Choose functions based on your security team's needs and stability requirements:
+- TokenGuard
+  - Use: experiments and local testing
+  - Risk: Proof of Concept — do not rely on for production auth
 
-- **TokenGuard**: 
-  - Experimental use only
-  - Suitable for testing and development environments
+- LlamaGuard Filter
+  - Use: content moderation and safety enforcement
+  - Notes: Requires local LlamaGuard-compatible model runtime
 
-- **LlamaGuard Filter**:
-  - Production-ready content filtering with configurable safety categories
-  - Requires Ollama installation and LlamaGuard model
-  - Suitable for automated content moderation and safety compliance
+- ThreatConnect IOC Enrichment
+  - Use: IOC extraction and enrichment
+  - Notes: Requires ThreatConnect API credentials; inspect `function/threatconnect_ioc_enrichment.py` (including `format_indicator_v2` and `generate_tc_auth_headers`) to understand authorization and response formatting
 
-- **ThreatConnect IOC Enrichment**:
-  - Production-ready threat intelligence integration
-  - Requires ThreatConnect API access (token or access key)
-  - Automatically identifies and enriches indicators of compromise in user messages
+- Anthropic Manifold Pipe
+  - Use: production-grade analysis with Anthropic models
+  - Notes: Test in your environment before broad adoption
 
-- **Anthropic Pipeline**: 
-  - Ready for production implementation
-  - Requires review and proper testing in your environment
+- Cloudflare WorkerAI Pipeline
+  - Use: WorkerAI-based pipelines, beta — best for non-critical tasks
 
-- **Cloudflare WorkerAI Pipeline**: 
-  - Beta implementation
-  - Suitable for non-critical deployments
-  - Expect updates and changes
+- Enhanced Web Scrape Tool
+  - Use: Web content extraction for enrichment and context
+  - Notes: See `tools/endgame_web_scrape.py` for retry and rate-limit handling logic
 
-- **Enhanced Web Scrape Tool**:
-  - Beta implementation for improved web content extraction
-  - Useful for security research and threat intelligence gathering
-  - Configurable cleaning options to reduce token usage
+---
 
 ## Contributing
 
-Feel free to contribute to this project by submitting pull requests or creating issues for bugs and feature requests. I will update the content on [Open WebUI](https://openwebui.com/) manually. 
+Contributions welcome. Please:
+- Open an issue for bugs or feature requests.
+- Submit a pull request with focused changes, tests, and documentation updates.
+
+I will synchronize changes to OpenWebUI community plugins manually once merged.
+
+---
 
 ## Author
 
-Created and maintained by Christian Taillon
-
-## Support
-
-For support or questions, please open an issue in the repository or contact through OpenWebUI's community channels.
+Created and maintained by Christian Taillon ☕
 
 ---
 
 ## Security Disclaimer
 
-The security functions provided in this repository come with varying levels of maturity and testing:
+> [!WARNING]
+> These tools augment workflows and do not replace a comprehensive security program.
 
-- **Proof of Concept (PoC)** functions are experimental and may contain bugs or security flaws. They should never be relied upon as your sole security mechanism.
-- **Beta** functions have undergone limited testing but may still contain unknown issues.
-- Even **Production Ready** functions should be thoroughly tested in your specific environment before deployment.
+- Proof of Concept (PoC) functions may contain bugs or security flaws.
+- Beta functions have limited testing and may contain unknown issues.
+- Even "Production Ready" functions should be validated in your environment.
 
-These tools are meant to enhance your security posture but should be implemented as part of a defense-in-depth strategy. The author and contributors are not responsible for security incidents resulting from the implementation of these functions.
-
-Users should conduct their own security reviews of this code before implementation in sensitive environments.
+> [!CAUTION]
+> Conduct your own security reviews and audits before deploying any component in sensitive environments. The author and contributors are not responsible for incidents resulting from the use of these tools.
