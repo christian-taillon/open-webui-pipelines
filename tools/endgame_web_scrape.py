@@ -266,3 +266,4 @@ if __name__ == "__main__":
     # Example usage (manual run):
     # asyncio.run(Tools().web_scrape_many(["https://example.com", "https://httpbin.org/html"]))
     pass
+
