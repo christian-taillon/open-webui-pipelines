@@ -170,4 +170,11 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# Custom
+.codacy/*
+*.md
+test_jinja_reranker.py
 GEMINI.md
+
+.gemini/
+gha-creds-*.json

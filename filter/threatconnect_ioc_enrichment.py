@@ -28,7 +28,6 @@ class AuthMethod(str, Enum):
     TOKEN = "token"
     ACCESS_KEY = "access_key"
 
-
 class Filter:
     """
     ThreatConnect IOC Enrichment Filter
