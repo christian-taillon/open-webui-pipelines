@@ -605,4 +605,3 @@ class Tools:
         self._integration_cache_time = None
 
         return f"Cache cleared. Removed {cache_size} cached entries."
-

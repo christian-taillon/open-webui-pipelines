@@ -1,14 +1,14 @@
 """
-title: Enhanced Web Scrape
+title: Enhanced Web Scrape with Citations
 author: ekatiyar and christian-taillon
 author_url: https://github.com/ekatiyar and https://github.com/christian-taillon/
 git_url: https://github.com/christian-taillon/open-webui-pipelines
-description: An improved-improved web scraping tool that extracts text content using Jina Reader, now with better filtering, user-configuration, UI feedback using emitters, retries, and batch scraping.
+description: An improved-improved web scraping tool that extracts text content using Jina Reader, now with better filtering, user-configuration, UI feedback using emitters, retries, batch scraping, and proper citation support.
 original_author: Pyotr Growpotkin
 original_author_url: https://github.com/christ-offer/
 original_git_url: https://github.com/christ-offer/open-webui-tools
 funding_url: https://github.com/open-webui
-version: 0.1.2
+version: 0.2.0
 license: MIT
 """
 
@@ -62,6 +62,19 @@ class EventEmitter:
                 }
             )
 
+    async def emit_citation(self, title: str, url: str, content: str):
+        if self.event_emitter:
+            await self.event_emitter(
+                {
+                    "type": "citation",
+                    "data": {
+                        "document": [content],
+                        "metadata": [{"source": url}],
+                        "source": {"name": title},
+                    },
+                }
+            )
+
 
 class Tools:
     class Valves(BaseModel):
@@ -72,7 +85,9 @@ class Tools:
             default="",
             description="(Optional) Jina API key. Allows a higher rate limit when scraping. Used when a User-specific API key is not available.",
         )
-        CITATION: bool = Field(default=True, description="True or false for citation")
+        CITATION_LINKS: bool = Field(
+            default=True, description="If True, send custom citations with links"
+        )
 
     class UserValves(BaseModel):
         CLEAN_CONTENT: bool = Field(
@@ -86,7 +101,6 @@ class Tools:
 
     def __init__(self):
         self.valves = self.Valves()
-        self.citation = self.valves.CITATION
 
     # ----------------------------
     # Internal helpers
@@ -221,6 +235,17 @@ class Tools:
         Scrape and process a web page using r.jina.ai
         """
         result = await self._scrape_one(url, __event_emitter__, __user__)
+
+        # Emit citation for successful scrapes
+        if (
+            result["content"] is not None
+            and self.valves.CITATION_LINKS
+            and __event_emitter__
+        ):
+            emitter = EventEmitter(__event_emitter__)
+            title = result["title"] or url
+            await emitter.emit_citation(title, url, result["content"])
+
         return (
             result["content"]
             if result["content"] is not None
@@ -232,10 +257,10 @@ class Tools:
         urls: List[str],
         __event_emitter__: Callable[[dict], Any] = None,
         __user__: dict = {},
-    ) -> List[Dict[str, Optional[str]]]:
+    ) -> str:
         """
         Scrape multiple web pages. Emits per-URL status updates and a final summary.
-        Returns a list of results in the same order as input.
+        Returns formatted content from all successfully scraped pages.
         """
         emitter = EventEmitter(__event_emitter__)
 
@@ -257,13 +282,38 @@ class Tools:
                 results[i] = res
 
         await asyncio.gather(*(run_one(i, u) for i, u in enumerate(urls)))
-        await emitter.success_update(f"Finished scraping {len(urls)} pages")
 
-        return [r for r in results if r is not None]
+        # Collect successful scrapes and emit citations
+        successful_results = []
+
+        for r in results:
+            if r and r["content"] is not None:
+                successful_results.append(r)
+                # Emit citation for each successful scrape
+                if self.valves.CITATION_LINKS and __event_emitter__:
+                    title = r["title"] or r["url"]
+                    await emitter.emit_citation(title, r["url"], r["content"])
+
+        await emitter.success_update(
+            f"Successfully scraped {len(successful_results)} of {len(urls)} pages"
+        )
+
+        # Format content from all successful scrapes
+        combined_content = []
+        for r in successful_results:
+            if r["title"]:
+                combined_content.append(f"## {r['title']}\n\n{r['content']}")
+            else:
+                combined_content.append(f"## Content from {r['url']}\n\n{r['content']}")
+
+        return (
+            "\n\n---\n\n".join(combined_content)
+            if combined_content
+            else "No content successfully scraped"
+        )
 
 
 if __name__ == "__main__":
     # Example usage (manual run):
     # asyncio.run(Tools().web_scrape_many(["https://example.com", "https://httpbin.org/html"]))
     pass
-
