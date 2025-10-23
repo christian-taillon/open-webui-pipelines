@@ -18,6 +18,9 @@ A collection of security-focused functions and pipelines for OpenWebUI, designed
 | Anthropic Manifold Pipe Sonnet 3.7  | Beta (v0.2.x)               | Enhanced capabilities, under testing         |
 | Cloudflare WorkerAI                 | Beta (v0.1.6)               | Early release pipeline using WorkerAI        |
 | ThreatConnect IOC Enrichment        | Production Ready (v0.7)     | Indicator enrichment using ThreatConnect     |
+| Polarity Search                   | Production Ready (v0.1)     | Web search with polarity analysis            |
+| ThreatConnect Agentic Search       | Production Ready (v0.5)     | Intelligent IOC search using ThreatConnect    |
+| ThreatConnect IOC Lookup Tool     | Production Ready (v0.3)     | Direct IOC lookup via ThreatConnect API      |
 
 *Always review code obtained from obscure repos and run at your own risk.*
 
@@ -25,25 +28,27 @@ A collection of security-focused functions and pipelines for OpenWebUI, designed
 
 ## Quick Links
 - Repo layout: see "Repository Structure" below
-- Pipelines: manifoldPipe/
-- Functions: function/
+- Pipelines: pipe/
+- Filters: filter/
 - Tools: tools/
 
 ---
 
 ## Manifold Pipelines
-Located in the `manifoldPipe/` directory.
+Located in the `pipe/` directory.
 
 ### Anthropic Manifold Pipe
-- File: manifoldPipe/anthropic.py
+- File: pipe/anthropic.py
 - Status: Production Ready (0.3.17)
 - Purpose: General-purpose security analysis pipeline integrating with Anthropic models.
 
-> [!TIP]
-> If you want to experiment with newer Anthropic features, consider the Sonnet 3.7 beta pipeline (manifoldPipe/beta-anthropic.py) in a separate workspace to avoid affecting production runs.
+### Anthropic Manifold Pipe Sonnet 3.7
+- File: pipe/beta-anthropic.py
+- Status: Beta (v0.2.x)
+- Purpose: Enhanced capabilities, under testing
 
 ### Cloudflare WorkerAI Pipeline
-- File: manifoldPipe/cloudflare.py
+- File: pipe/cloudflare.py
 - Status: Beta (v0.1.6)
 - Purpose: Integrates Cloudflare WorkerAI capabilities into OpenWebUI pipelines.
 
@@ -52,11 +57,11 @@ Located in the `manifoldPipe/` directory.
 
 ---
 
-## Functions
-Located in the `function/` directory. Copy the .py contents into OpenWebUI -> Workspaces -> Functions to add them to your instance.
+## Filters
+Located in the `filter/` directory. Copy the .py contents into OpenWebUI -> Workspaces -> Functions to add them to your instance.
 
 ### TokenGuard
-- File: function/tokenGuard.py
+- File: filter/tokenGuard.py
 - Status: Proof of Concept (v0.0.2)
 - Purpose: Experimental token management and related utilities.
 
@@ -66,7 +71,7 @@ Located in the `function/` directory. Copy the .py contents into OpenWebUI -> Wo
 > TokenGuard is experimental. Use only in test/dev environments and audit the code before any production usage.
 
 ### LlamaGuard Filter
-- File: function/llama_guard.py
+- File: filter/llama_guard.py
 - Status: Production Ready (v0.0.2)
 - Purpose: Content filtering and safety enforcement using LlamaGuard.
 
@@ -76,17 +81,32 @@ Located in the `function/` directory. Copy the .py contents into OpenWebUI -> Wo
 > LlamaGuard requires a compatible local model runtime (for example, Ollama + LlamaGuard model). Configure safety categories (S1–S13) according to your policies.
 
 ### ThreatConnect IOC Enrichment
-- File: function/threatconnect_ioc_enrichment.py
+- File: filter/threatconnect_ioc_enrichment.py
 - Status: Production Ready (v0.7)
 - Purpose: Automatically extract and enrich Indicators of Compromise (IOCs) using ThreatConnect APIs.
 
 ![ThreatConnect IOC Enrichment illustration](asset/tim_cti_analyst.png)
 
 > [!NOTE]
-> The `function/threatconnect_ioc_enrichment.py` file contains formatting helpers such as `format_indicator_v2` that normalize ThreatConnect v2 responses into fields (tc_id, owner, first_seen, last_modified, confidence, rating, threat_rating, threat_confidence). It also contains authentication helper(s) like `generate_tc_auth_headers` — review that function to understand authentication header construction for ThreatConnect API calls.
+> The `filter/threatconnect_ioc_enrichment.py` file contains formatting helpers such as `format_indicator_v2` that normalize ThreatConnect v2 responses into fields (tc_id, owner, first_seen, last_modified, confidence, rating, threat_rating, threat_confidence). It also contains authentication helper(s) like `generate_tc_auth_headers` — review that function to understand authentication header construction for ThreatConnect API calls.
 
 > [!TIP]
-> Open `function/threatconnect_ioc_enrichment.py` to confirm which ThreatConnect API fields are mapped and to extend mappings if you need additional fields in the LLM output.
+> Open `filter/threatconnect_ioc_enrichment.py` to confirm which ThreatConnect API fields are mapped and to extend mappings if you need additional fields in the LLM output.
+
+### Polarity Search
+- File: tools/polarity_search.py
+- Status: Production Ready (v0.1)
+- Purpose: Web search with sentiment/polarity analysis.
+
+### ThreatConnect Agentic Search
+- File: tools/threatconnect_agentic_search.py
+- Status: Production Ready (v0.5)
+- Purpose: Intelligent IOC search using ThreatConnect APIs.
+
+### ThreatConnect IOC Lookup Tool
+- File: tools/threatconnect_ioc_lookup_tool.py
+- Status: Production Ready (v0.3)
+- Purpose: Direct IOC lookup via ThreatConnect API.
 
 ---
 
@@ -111,12 +131,12 @@ Located in the `tools/` directory.
 ## Installation / Usage
 
 1. Open your OpenWebUI instance.
-2. To add a function:
+2. To add a filter:
    - Navigate to Workspaces -> Functions -> New Function (+)
-   - Copy the contents of the desired `.py` file from `function/` and paste into the new function editor.
+   - Copy the contents of the desired `.py` file from `filter/` and paste into the new function editor.
    - Save.
 3. To add a manifold pipeline:
-   - Import or recreate the pipeline under Manifold Pipelines, copying code from `manifoldPipe/*.py` as needed.
+   - Import or recreate the pipeline under Manifold Pipelines, copying code from `pipe/*.py` as needed.
 4. For tools, you can reuse scripts or adapt them into functions/pipelines.
 
 > [!IMPORTANT]
@@ -128,16 +148,19 @@ Located in the `tools/` directory.
 
 ```
 ./
-├── function/
+├── filter/
 │   ├── llama_guard.py
 │   ├── threatconnect_ioc_enrichment.py
 │   └── tokenGuard.py
-├── manifoldPipe/
+├── pipe/
 │   ├── anthropic.py
 │   ├── beta-anthropic.py
 │   └── cloudflare.py
 ├── tools/
-│   └── endgame_web_scrape.py
+│   ├── endgame_web_scrape.py
+│   ├── polarity_search.py
+│   ├── threatconnect_agentic_search.py
+│   └── threatconnect_ioc_lookup_tool.py
 ├── asset/
 │   ├── LlamaGuard_customization-hq.gif
 │   ├── LlamaGuard-hq.gif
@@ -162,7 +185,15 @@ Located in the `tools/` directory.
 
 - ThreatConnect IOC Enrichment
   - Use: IOC extraction and enrichment
-  - Notes: Requires ThreatConnect API credentials; inspect `function/threatconnect_ioc_enrichment.py` (including `format_indicator_v2` and `generate_tc_auth_headers`) to understand authorization and response formatting
+  - Notes: Requires ThreatConnect API credentials; inspect `filter/threatconnect_ioc_enrichment.py` (including `format_indicator_v2` and `generate_tc_auth_headers`) to understand authorization and response formatting
+
+- ThreatConnect Agentic Search
+  - Use: Intelligent IOC search with ThreatConnect APIs
+  - Notes: Requires ThreatConnect API credentials; handles complex search patterns
+
+- ThreatConnect IOC Lookup Tool
+  - Use: Direct IOC lookup via ThreatConnect API
+  - Notes: Simple, direct IOC queries using ThreatConnect
 
 - Anthropic Manifold Pipe
   - Use: production-grade analysis with Anthropic models
