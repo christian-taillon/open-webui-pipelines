@@ -7,7 +7,12 @@ version: 8.2
 license: MIT
 requirements: pydantic>=2.0.0, aiohttp>=3.8.0
 environment_variables:
-    - ANTHROPIC_API_KEY (required)
+    - ANTHROPIC_API_KEY (required): Your Anthropic API key
+    - ANTHROPIC_ENABLE_CACHING (optional, default: "true"): Enable prompt caching
+    - ANTHROPIC_SHOW_CACHE_INFO (optional, default: "true"): Display cache statistics
+    - ANTHROPIC_REQUEST_TIMEOUT (optional, default: "300"): API request timeout in seconds
+    - ANTHROPIC_MODEL_CACHE_TTL (optional, default: "3600"): Model list cache TTL in seconds
+    - LOG_LEVEL (optional, default: "INFO"): Logging level
 This script is the definitive, all-in-one integration for Anthropic models in OpenWebUI. It
 combines the best features from multiple community scripts into a single, robust, and
 future-proof solution.
@@ -42,7 +47,7 @@ import re
 import logging
 import asyncio
 import random
-from typing import List, Union, Dict, Optional, AsyncIterator
+from typing import List, Union, Dict, Optional, AsyncIterator, AsyncGenerator, Any
 import aiohttp
 from pydantic import BaseModel, Field
 from open_webui.utils.misc import pop_system_message
@@ -85,16 +90,62 @@ class Pipe:
     MAX_IMAGE_SIZE = 5 * 1024 * 1024
     MAX_PDF_SIZE = 32 * 1024 * 1024
     class Valves(BaseModel):
-        """Configurable settings for the pipe, adjustable in OpenWebUI."""
-        ANTHROPIC_API_KEY: str = Field(default="")
-        ENABLE_THINKING: bool = True
-        DISPLAY_THINKING: bool = Field(default=True, description="Display Claude's thinking process in the chat")
-        MAX_OUTPUT_TOKENS: bool = True
-        ENABLE_TOOL_CHOICE: bool = True
-        ENABLE_CACHING: bool = True
-        SHOW_CACHE_INFO: bool = True
-        ENABLE_1M_CONTEXT: bool = False
-        CLAUDE_45_USE_TEMPERATURE: bool = Field(default=True, description="For Claude 4.5: Use temperature (True) or top_p (False)")
+        """Configurable settings for the Anthropic pipe."""
+
+        ANTHROPIC_API_KEY: str = Field(
+            default="",
+            description="Your Anthropic API key (get from console.anthropic.com)"
+        )
+
+        ENABLE_THINKING: bool = Field(
+            default=True,
+            description="Enable extended thinking for Claude 3.7+ and 4.x models"
+        )
+
+        DISPLAY_THINKING: bool = Field(
+            default=True,
+            description="Display Claude's thinking process in chat (when thinking enabled)"
+        )
+
+        MAX_OUTPUT_TOKENS: bool = Field(
+            default=True,
+            description="Use maximum output tokens (128K for 3.7/4.x models)"
+        )
+
+        ENABLE_TOOL_CHOICE: bool = Field(
+            default=True,
+            description="Enable tool/function calling capabilities"
+        )
+
+        ENABLE_CACHING: bool = Field(
+            default=True,
+            description="Enable prompt caching to reduce costs and latency"
+        )
+
+        SHOW_CACHE_INFO: bool = Field(
+            default=True,
+            description="Display cache hit statistics and cost savings"
+        )
+
+        ENABLE_1M_CONTEXT: bool = Field(
+            default=False,
+            description="Enable 1M token context for Claude 4.x (beta feature)"
+        )
+
+        CLAUDE_45_USE_TEMPERATURE: bool = Field(
+            default=True,
+            description="Claude 4.5: Use temperature (True) or top_p (False) sampling"
+        )
+
+        REQUEST_TIMEOUT: int = Field(
+            default=300,
+            description="API request timeout in seconds (default: 5 minutes)"
+        )
+
+        MODEL_CACHE_TTL: int = Field(
+            default=3600,
+            description="Model list cache duration in seconds (default: 1 hour, 0 to disable)"
+        )
     def __init__(self):
         logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
         self.type = "manifold"
@@ -105,9 +156,12 @@ class Pipe:
             == "true",
             SHOW_CACHE_INFO=os.getenv("ANTHROPIC_SHOW_CACHE_INFO", "true").lower()
             == "true",
+            REQUEST_TIMEOUT=int(os.getenv("ANTHROPIC_REQUEST_TIMEOUT", "300")),
+            MODEL_CACHE_TTL=int(os.getenv("ANTHROPIC_MODEL_CACHE_TTL", "3600")),
         )
         self.request_id = None
         self._models_list_cache = None
+        self._models_cache_time = None
     def _get_model_base(self, model_id: str) -> str:
         """Extracts the base name of a model for capability lookups."""
         match = re.search(r"(claude-[\d\.\-a-z]+)-(\d{8}|latest)", model_id)
@@ -191,6 +245,38 @@ class Pipe:
                 )
                 self._models_list_cache = self._get_fallback_models()
         return self._models_list_cache
+
+    def _format_error(
+        self,
+        message: str,
+        error_code: str = "UNKNOWN",
+        http_status: Optional[int] = None,
+        request_id: Optional[str] = None
+    ) -> str:
+        """
+        Format error responses consistently.
+
+        Args:
+            message: Human-readable error message
+            error_code: Error category (API_ERROR, VALIDATION_ERROR, TIMEOUT, etc.)
+            http_status: HTTP status code if from API
+            request_id: Anthropic request ID for debugging
+
+        Returns:
+            Formatted error string for display
+        """
+        error_parts = [f"❌ {error_code}"]
+
+        if http_status:
+            error_parts.append(f"HTTP {http_status}")
+
+        if request_id:
+            error_parts.append(f"[Request: {request_id}]")
+
+        error_parts.append(f"\n{message}")
+
+        return " | ".join(error_parts[:3]) + error_parts[-1]
+
     def _get_cache_info(self, usage_data: Dict, model_id: str) -> str:
         """Formats cache usage information and cost savings for display."""
         if not self.valves.SHOW_CACHE_INFO or not usage_data:
@@ -214,24 +300,109 @@ class Pipe:
             return f"```\n✅ CACHE HIT: {cache_percentage:.1f}% cached. Savings: ~${savings:.6f}\n   Tokens: {input_tokens:,} In / {output_tokens:,} Out\n```\n\n"
         else:
             return f"```\n❌ CACHE MISS: No cache used.\n   Tokens: {input_tokens:,} In / {output_tokens:,} Out\n```\n\n"
-    def _normalize_content_blocks(self, raw_content):
-        """Normalize content into proper block format."""
+    def _normalize_content_blocks(
+        self,
+        raw_content: Union[List, Dict, str],
+        _depth: int = 0,
+        _visited: Optional[set] = None
+    ) -> List[Dict]:
+        """
+        Normalize content into proper block format with safety checks.
+
+        Args:
+            raw_content: Content to normalize (list, dict, or string)
+            _depth: Current recursion depth (internal use)
+            _visited: Set of visited object IDs to detect circular refs (internal use)
+
+        Returns:
+            List of normalized content blocks
+
+        Raises:
+            ValueError: If circular reference or max depth exceeded
+        """
+        # Initialize visited set on first call
+        if _visited is None:
+            _visited = set()
+
+        # Check maximum nesting depth (prevent stack overflow)
+        MAX_DEPTH = 10
+        if _depth > MAX_DEPTH:
+            logging.error(f"Content nesting exceeds maximum depth of {MAX_DEPTH}")
+            raise ValueError(
+                f"Content structure too deeply nested (max {MAX_DEPTH} levels). "
+                "This may indicate a circular reference or invalid structure."
+            )
+
+        # Circular reference detection for mutable objects
+        if isinstance(raw_content, (list, dict)):
+            obj_id = id(raw_content)
+            if obj_id in _visited:
+                logging.error(f"Circular reference detected in content at depth {_depth}")
+                raise ValueError(
+                    "Circular reference detected in content structure. "
+                    "Content cannot reference itself."
+                )
+            _visited.add(obj_id)
+
         blocks = []
+
+        # Convert to list if needed
         if isinstance(raw_content, list):
             items = raw_content
         else:
             items = [raw_content]
 
-        for item in items:
-            if isinstance(item, dict) and item.get("type"):
-                blocks.append(dict(item))
-            elif isinstance(item, dict) and "content" in item:
-                blocks.extend(self._normalize_content_blocks(item["content"]))
-            elif item is not None:
-                blocks.append({"type": "text", "text": str(item)})
+        # Process each item
+        for idx, item in enumerate(items):
+            try:
+                if isinstance(item, dict) and item.get("type"):
+                    # Direct block - copy and continue
+                    blocks.append(dict(item))
+
+                elif isinstance(item, dict) and "content" in item:
+                    # Nested content - recurse with depth tracking
+                    nested_blocks = self._normalize_content_blocks(
+                        item["content"],
+                        _depth=_depth + 1,
+                        _visited=_visited.copy()  # Copy to allow sibling references
+                    )
+                    blocks.extend(nested_blocks)
+
+                elif item is not None:
+                    # Fallback - convert to text
+                    # Handle unexpected types gracefully
+                    try:
+                        text_value = str(item)
+                    except Exception as e:
+                        logging.warning(
+                            f"Failed to convert content item to string at depth {_depth}, "
+                            f"index {idx}: {type(item).__name__}. Error: {e}"
+                        )
+                        text_value = f"<unconvertible {type(item).__name__}>"
+
+                    blocks.append({"type": "text", "text": text_value})
+
+                # else: skip None items
+
+            except ValueError:
+                # Re-raise validation errors (circular ref, max depth)
+                raise
+
+            except Exception as e:
+                # Log unexpected errors but continue processing
+                logging.error(
+                    f"Error processing content item at depth {_depth}, index {idx}: {e}",
+                    exc_info=True
+                )
+                # Add error indicator instead of crashing
+                blocks.append({
+                    "type": "text",
+                    "text": f"[Error processing content item {idx}: {str(e)[:100]}]"
+                })
+
         return blocks
 
-    def _attach_cache_control(self, block: dict):
+    def _attach_cache_control(self, block: Dict) -> Dict:
         """Attach cache control to a content block."""
         if not isinstance(block, dict):
             return block
@@ -245,7 +416,7 @@ class Pipe:
         block["cache_control"] = {"type": "ephemeral"}
         return block
 
-    def _prepare_system_blocks(self, system_message):
+    def _prepare_system_blocks(self, system_message: Union[Dict, str, None]) -> Optional[List[Dict]]:
         """Prepare system message with cache control."""
         if not system_message:
             return None
@@ -258,7 +429,7 @@ class Pipe:
         cached_blocks = [self._attach_cache_control(block) for block in normalized_blocks]
         return cached_blocks if cached_blocks else None
 
-    def _apply_cache_control_to_last_message(self, messages):
+    def _apply_cache_control_to_last_message(self, messages: List[Dict]) -> None:
         """Apply cache control to the last user message."""
         if not messages:
             return
@@ -271,15 +442,49 @@ class Pipe:
                 break
 
     def _process_content_item(self, item: Dict) -> Dict:
-        if item["type"] == "image_url":
+        """Process a content item with comprehensive validation."""
+
+        # Validate item structure
+        if not isinstance(item, dict):
+            raise ValueError(f"Content item must be a dict, got {type(item).__name__}")
+
+        if "type" not in item:
+            raise ValueError(f"Content item missing required 'type' field: {item}")
+
+        item_type = item["type"]
+
+        # Process image_url type
+        if item_type == "image_url":
+            if "image_url" not in item:
+                raise ValueError("image_url type requires 'image_url' field")
+
+            if not isinstance(item["image_url"], dict) or "url" not in item["image_url"]:
+                raise ValueError("image_url must contain {'url': '...'}")
+
             url = item["image_url"]["url"]
+
             if url.startswith("data:image"):
-                mime_type, base64_data = url.split(",", 1)
-                media_type = mime_type.split(":", 1)[1].split(";", 1)[0]
+                # Existing base64 processing with validation
+                try:
+                    mime_type, base64_data = url.split(",", 1)
+                    media_type = mime_type.split(":", 1)[1].split(";", 1)[0]
+                except (ValueError, IndexError) as e:
+                    raise ValueError(f"Invalid data URL format: {e}")
+
                 if media_type not in self.SUPPORTED_IMAGE_TYPES:
-                    raise ValueError(f"Unsupported image type: {media_type}")
-                if len(base64_data) * 3 / 4 > self.MAX_IMAGE_SIZE:
-                    raise ValueError("Image size exceeds 5MB.")
+                    raise ValueError(
+                        f"Unsupported image type: {media_type}. "
+                        f"Supported types: {', '.join(self.SUPPORTED_IMAGE_TYPES)}"
+                    )
+
+                # Validate size
+                estimated_size = len(base64_data) * 3 / 4
+                if estimated_size > self.MAX_IMAGE_SIZE:
+                    raise ValueError(
+                        f"Image size ({estimated_size / 1024 / 1024:.2f}MB) exceeds "
+                        f"maximum {self.MAX_IMAGE_SIZE / 1024 / 1024}MB"
+                    )
+
                 return {
                     "type": "image",
                     "source": {
@@ -288,13 +493,36 @@ class Pipe:
                         "data": base64_data,
                     },
                 }
+
+            # URL-based image
+            if not url.startswith(("http://", "https://")):
+                raise ValueError(f"Image URL must start with http:// or https://, got: {url[:50]}...")
+
             return {"type": "image", "source": {"type": "url", "url": url}}
-        if item["type"] == "pdf_url":
+
+        # Process pdf_url type
+        if item_type == "pdf_url":
+            if "pdf_url" not in item:
+                raise ValueError("pdf_url type requires 'pdf_url' field")
+
+            if not isinstance(item["pdf_url"], dict) or "url" not in item["pdf_url"]:
+                raise ValueError("pdf_url must contain {'url': '...'}")
+
             url = item["pdf_url"]["url"]
+
             if url.startswith("data:application/pdf"):
-                _, base64_data = url.split(",", 1)
-                if len(base64_data) * 3 / 4 > self.MAX_PDF_SIZE:
-                    raise ValueError("PDF size exceeds 32MB.")
+                try:
+                    _, base64_data = url.split(",", 1)
+                except ValueError as e:
+                    raise ValueError(f"Invalid PDF data URL format: {e}")
+
+                estimated_size = len(base64_data) * 3 / 4
+                if estimated_size > self.MAX_PDF_SIZE:
+                    raise ValueError(
+                        f"PDF size ({estimated_size / 1024 / 1024:.2f}MB) exceeds "
+                        f"maximum {self.MAX_PDF_SIZE / 1024 / 1024}MB"
+                    )
+
                 return {
                     "type": "document",
                     "source": {
@@ -303,13 +531,59 @@ class Pipe:
                         "data": base64_data,
                     },
                 }
+
+            # URL-based PDF
+            if not url.startswith(("http://", "https://")):
+                raise ValueError(f"PDF URL must start with http:// or https://, got: {url[:50]}...")
+
             return {"type": "document", "source": {"type": "url", "url": url}}
+
+        # Pass through other types unchanged
         return item
     async def pipe(
-        self, body: Dict, __event_emitter__=None
-    ) -> Union[str, AsyncIterator[str]]:
+        self,
+        body: Dict,
+        __user__: Optional[Dict] = None,
+        __event_emitter__: Optional[Any] = None,
+    ) -> Union[str, AsyncGenerator[str, None]]:
         if not self.valves.ANTHROPIC_API_KEY:
             return "Error: ANTHROPIC_API_KEY is not set."
+
+        # ===== INPUT VALIDATION =====
+
+        # Validate required fields
+        if "messages" not in body:
+            return "Error: Missing required field 'messages' in request body"
+
+        if not isinstance(body["messages"], list):
+            return f"Error: 'messages' must be a list, got {type(body['messages']).__name__}"
+
+        if len(body["messages"]) == 0:
+            return "Error: 'messages' list cannot be empty"
+
+        if "model" not in body:
+            return "Error: Missing required field 'model' in request body"
+
+        # Validate model format
+        if not isinstance(body["model"], str) or "/" not in body["model"]:
+            return f"Error: Invalid model format '{body.get('model')}'. Expected format: 'anthropic/model-name'"
+
+        # Validate optional numeric parameters
+        if "max_tokens" in body:
+            max_tokens = body["max_tokens"]
+            if not isinstance(max_tokens, int) or max_tokens <= 0:
+                return f"Error: max_tokens must be a positive integer, got {max_tokens}"
+
+        if "temperature" in body:
+            temp = body["temperature"]
+            if not isinstance(temp, (int, float)) or not (0 <= temp <= 2):
+                return f"Error: temperature must be between 0 and 2, got {temp}"
+
+        if "top_p" in body:
+            top_p = body["top_p"]
+            if not isinstance(top_p, (int, float)) or not (0 <= top_p <= 1):
+                return f"Error: top_p must be between 0 and 1, got {top_p}"
+
         try:
             system_message, messages = pop_system_message(body["messages"])
             model_id_full = body["model"].split("/")[-1]
@@ -317,27 +591,35 @@ class Pipe:
             model_id = model_id_full.replace("-thinking", "")
             base_model = self._get_model_base(model_id)
             processed_messages, beta_headers_needed = [], set()
-            for msg in messages:
-                content_list = (
-                    msg["content"]
-                    if isinstance(msg["content"], list)
-                    else [{"type": "text", "text": msg["content"]}]
-                )
-                processed_content = []
-                for item in content_list:
-                    if item.get("type") == "pdf_url":
-                        beta_headers_needed.add(self.BETA_HEADERS["PDF"])
-                    processed_item = self._process_content_item(item)
-                    if self.valves.ENABLE_CACHING and item.get("type") in [
-                        "tool_calls",
-                        "tool_results",
-                    ]:
-                        processed_item["cache_control"] = {"type": "ephemeral"}
-                        beta_headers_needed.add(self.BETA_HEADERS["CACHING"])
-                    processed_content.append(processed_item)
-                processed_messages.append(
-                    {"role": msg["role"], "content": processed_content}
-                )
+            try:
+                for msg in messages:
+                    content_list = (
+                        msg["content"]
+                        if isinstance(msg["content"], list)
+                        else [{"type": "text", "text": msg["content"]}]
+                    )
+                    processed_content = []
+                    for item in content_list:
+                        if item.get("type") == "pdf_url":
+                            beta_headers_needed.add(self.BETA_HEADERS["PDF"])
+                        processed_item = self._process_content_item(item)
+                        if self.valves.ENABLE_CACHING and item.get("type") in [
+                            "tool_calls",
+                            "tool_results",
+                        ]:
+                            processed_item["cache_control"] = {"type": "ephemeral"}
+                            beta_headers_needed.add(self.BETA_HEADERS["CACHING"])
+                        processed_content.append(processed_item)
+                    processed_messages.append(
+                        {"role": msg["role"], "content": processed_content}
+                    )
+            except ValueError as e:
+                # Validation errors - return to user
+                return f"Content validation error: {e}"
+            except Exception as e:
+                # Unexpected errors - log and return
+                logging.error(f"Error processing message content: {e}", exc_info=True)
+                return f"Failed to process message content: {e}"
             max_tokens_default = self.MODEL_MAX_TOKENS.get(base_model, 4096)
             requested_max = body.get("max_tokens")
 
@@ -407,7 +689,7 @@ class Pipe:
             if beta_headers_needed:
                 headers["anthropic-beta"] = ",".join(sorted(list(beta_headers_needed)))
             if payload["stream"]:
-                return self._stream_response(headers, payload)
+                return self._stream_response(headers, payload, __event_emitter__)
             response_data = await self._send_request(headers, payload)
             if isinstance(response_data, str):
                 return response_data
@@ -435,19 +717,26 @@ class Pipe:
             logging.error(f"Error in pipe method: {e}", exc_info=True)
             return f"An unexpected error occurred: {e}"
     async def _stream_response(
-        self, headers: Dict, payload: Dict
-    ) -> AsyncIterator[str]:
+        self, headers: Dict, payload: Dict, __event_emitter__: Optional[Any] = None
+    ) -> AsyncGenerator[str, None]:
         is_thinking, is_tool_use = False, False
         tool_call_chunks = {}
         try:
             async with aiohttp.ClientSession() as session:
-                timeout = aiohttp.ClientTimeout(total=self.REQUEST_TIMEOUT)
+                timeout = aiohttp.ClientTimeout(total=self.valves.REQUEST_TIMEOUT)
                 async with session.post(
                     self.MESSAGES_URL, headers=headers, json=payload, timeout=timeout
                 ) as response:
                     self.request_id = response.headers.get("x-request-id")
+                    logging.info(f"Streaming request initiated [Request ID: {self.request_id}]")
                     if response.status != 200:
-                        yield f"API Error: HTTP {response.status} - {await response.text()}"
+                        error_msg = self._format_error(
+                            message=await response.text(),
+                            error_code="API_ERROR",
+                            http_status=response.status,
+                            request_id=self.request_id
+                        )
+                        yield error_msg
                         return
                     async for line in response.content:
                         if not line.startswith(b"data: "):
@@ -517,18 +806,40 @@ class Pipe:
                                     )
                             is_thinking = is_tool_use = False
                         elif event_type == "message_stop":
+                            usage_info = self._get_cache_info(data.get('usage'), payload['model'])
                             logging.info(
-                                f"Stream finished. {self._get_cache_info(data.get('usage'), payload['model'])}"
+                                f"Stream finished [Request ID: {self.request_id}]. {usage_info}"
                             )
                             break
+        except asyncio.TimeoutError as e:
+            logging.error(f"Streaming timeout: {e}", exc_info=True)
+            error_msg = self._format_error(
+                message=f"Request timed out after {self.valves.REQUEST_TIMEOUT}s",
+                error_code="TIMEOUT",
+                request_id=self.request_id
+            )
+            yield error_msg
+        except aiohttp.ClientError as e:
+            logging.error(f"Streaming network error: {e}", exc_info=True)
+            error_msg = self._format_error(
+                message=str(e),
+                error_code="NETWORK_ERROR",
+                request_id=self.request_id
+            )
+            yield error_msg
         except Exception as e:
             logging.error(f"Streaming error: {e}", exc_info=True)
-            yield f"Stream Error: {e}"
+            error_msg = self._format_error(
+                message=str(e),
+                error_code="STREAM_ERROR",
+                request_id=self.request_id
+            )
+            yield error_msg
     async def _send_request(self, headers: Dict, payload: Dict) -> Union[Dict, str]:
         for attempt in range(5):
             try:
                 async with aiohttp.ClientSession() as session:
-                    timeout = aiohttp.ClientTimeout(total=self.REQUEST_TIMEOUT)
+                    timeout = aiohttp.ClientTimeout(total=self.valves.REQUEST_TIMEOUT)
                     async with session.post(
                         self.MESSAGES_URL,
                         headers=headers,
@@ -536,7 +847,9 @@ class Pipe:
                         timeout=timeout,
                     ) as response:
                         self.request_id = response.headers.get("x-request-id")
+                        logging.info(f"Non-streaming request sent [Request ID: {self.request_id}]")
                         if response.status == 200:
+                            logging.info(f"Request successful [Request ID: {self.request_id}]")
                             return await response.json()
                         if response.status in [429, 500, 502, 503, 504] and attempt < 4:
                             delay = int(
@@ -544,12 +857,29 @@ class Pipe:
                             )
                             await asyncio.sleep(delay + random.uniform(0, 1))
                             continue
-                        return f"API Error: HTTP {response.status} - {await response.text()}"
+                        return self._format_error(
+                            message=await response.text(),
+                            error_code="API_ERROR",
+                            http_status=response.status,
+                            request_id=self.request_id
+                        )
             except asyncio.TimeoutError:
                 if attempt < 4:
                     await asyncio.sleep((2 ** (attempt + 1)) + random.uniform(0, 1))
                     continue
-                return f"API Error: Request timed out after {self.REQUEST_TIMEOUT}s and multiple retries."
+                return self._format_error(
+                    message=f"Request timed out after {self.valves.REQUEST_TIMEOUT}s and multiple retries",
+                    error_code="TIMEOUT",
+                    request_id=self.request_id
+                )
             except aiohttp.ClientError as e:
-                return f"Network Error: {e}"
-        return "API Error: Max retries exceeded."
+                return self._format_error(
+                    message=str(e),
+                    error_code="NETWORK_ERROR",
+                    request_id=self.request_id
+                )
+        return self._format_error(
+            message="Max retries exceeded",
+            error_code="MAX_RETRIES",
+            request_id=self.request_id
+        )
