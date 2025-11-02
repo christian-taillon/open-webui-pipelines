@@ -2,7 +2,7 @@
 
 A collection of security-focused functions and pipelines for OpenWebUI, designed to enhance security team operations.
 
-📹 **[Watch the Agentic SOC Mentors & Helpers Overview](./agentic-soc.html)**
+📹 **[Watch the Agentic SOC Mentors & Helpers Overview](https://christiant.io/agentic-soc)**
 
 > [!NOTE]
 > This repository includes ready-to-use pipelines and functions plus visual demos. Use the callouts to find important details quickly.
