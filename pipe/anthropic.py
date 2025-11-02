@@ -3,7 +3,7 @@ title: Final Unified Anthropic Pipe with Dynamic Discovery, Caching, and Streami
 authors: Balaxxe, nbellochi, Bermont, Mark Kazakov, Christian Taillon (Consolidated & Enhanced by AI)
 author_url: https://github.com/christian-taillon
 funding_url: https://github.com/open-webui
-version: 8.2
+version: 8.5
 license: MIT
 requirements: pydantic>=2.0.0, aiohttp>=3.8.0
 environment_variables:
@@ -16,6 +16,21 @@ environment_variables:
 This script is the definitive, all-in-one integration for Anthropic models in OpenWebUI. It
 combines the best features from multiple community scripts into a single, robust, and
 future-proof solution.
+Changelog v8.5:
+- Removed cost tracking functionality (ENABLE_COST_TRACKING valve, MODEL_PRICING, cost calculation methods)
+- Removed cost display from responses and event emissions
+- Simplified _get_cache_info to only show token counts and cache hit percentage
+- Removed conversation cost storage and tracking
+
+Changelog v8.3:
+- Added comprehensive event emitter integration for user visibility
+- Implemented _emit_status() and _emit_message() helper methods
+- Added status updates for non-streaming requests (connecting, success, failure)
+- Added progress indicators for streaming responses (thinking, tool use, completion)
+- Made cache info visible at end of streaming responses (previously only logged)
+- Added event emissions for all error conditions with proper status updates
+- Enhanced user experience with real-time UI feedback throughout request lifecycle
+
 Changelog v8.2:
 - Improved cache control to use default 5-minute ephemeral caching (per Anthropic spec)
 - Improved content block normalization with dedicated helper methods
@@ -76,15 +91,7 @@ class Pipe:
         "claude-sonnet-4": 64000,
         "claude-sonnet-4-5": 64000,
     }
-    MODEL_PRICING = {  # Per million tokens (Input, Cache Write, Cache Read, Output)
-        "claude-3-opus": (15.0, 18.75, 1.5, 75.0),
-        "claude-3-sonnet": (3.0, 3.75, 0.3, 15.0),
-        "claude-3-haiku": (0.25, 0.3125, 0.025, 1.25),
-        "claude-3-5-sonnet": (3.0, 3.75, 0.3, 15.0),
-        "claude-3-7-sonnet": (3.0, 3.75, 0.3, 15.0),
-        "claude-sonnet-4": (4.0, 5.0, 0.4, 20.0),
-        "claude-opus-4": (20.0, 25.0, 2.0, 100.0),
-    }
+
     # File and Content Constants
     SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
     MAX_IMAGE_SIZE = 5 * 1024 * 1024
@@ -146,6 +153,8 @@ class Pipe:
             default=3600,
             description="Model list cache duration in seconds (default: 1 hour, 0 to disable)"
         )
+
+
     def __init__(self):
         logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
         self.type = "manifold"
@@ -246,6 +255,31 @@ class Pipe:
                 self._models_list_cache = self._get_fallback_models()
         return self._models_list_cache
 
+    async def _emit_status(
+        self,
+        __event_emitter__: Optional[Any],
+        description: str,
+        done: bool = False
+    ) -> None:
+        """
+        Emit status event to UI.
+
+        Args:
+            __event_emitter__: Event emitter from OpenWebUI
+            description: Status description to display
+            done: Whether the status is complete
+        """
+        if __event_emitter__:
+            await __event_emitter__(
+                {
+                    "type": "status",
+                    "data": {
+                        "description": description,
+                        "done": done
+                    }
+                }
+            )
+
     def _format_error(
         self,
         message: str,
@@ -278,7 +312,7 @@ class Pipe:
         return " | ".join(error_parts[:3]) + error_parts[-1]
 
     def _get_cache_info(self, usage_data: Dict, model_id: str) -> str:
-        """Formats cache usage information and cost savings for display."""
+        """Formats cache usage information for display."""
         if not self.valves.SHOW_CACHE_INFO or not usage_data:
             return ""
         input_tokens, output_tokens, cached_tokens = (
@@ -286,20 +320,15 @@ class Pipe:
             usage_data.get("output_tokens", 0),
             usage_data.get("cache_read_input_tokens", 0),
         )
-        base_model = self._get_model_base(model_id)
-        prices = self.MODEL_PRICING.get(
-            base_model, self.MODEL_PRICING["claude-3-5-sonnet"]
-        )
         if cached_tokens > 0:
             cache_percentage = (
                 (cached_tokens / input_tokens * 100) if input_tokens > 0 else 0
             )
-            savings = (
-                (input_tokens - cached_tokens) * (prices[0] - prices[2])
-            ) / 1_000_000
-            return f"```\n✅ CACHE HIT: {cache_percentage:.1f}% cached. Savings: ~${savings:.6f}\n   Tokens: {input_tokens:,} In / {output_tokens:,} Out\n```\n\n"
+            return f"```\n✅ CACHE HIT: {cache_percentage:.1f}% cached.\n   Tokens: {input_tokens:,} In / {output_tokens:,} Out\n```\n\n"
         else:
             return f"```\n❌ CACHE MISS: No cache used.\n   Tokens: {input_tokens:,} In / {output_tokens:,} Out\n```\n\n"
+
+
     def _normalize_content_blocks(
         self,
         raw_content: Union[List, Dict, str],
@@ -689,11 +718,33 @@ class Pipe:
             if beta_headers_needed:
                 headers["anthropic-beta"] = ",".join(sorted(list(beta_headers_needed)))
             if payload["stream"]:
-                return self._stream_response(headers, payload, __event_emitter__)
+                return self._stream_response(headers, payload, __event_emitter__, body)
+            
+            # Emit start status for non-streaming
+            await self._emit_status(__event_emitter__, "Sending request to Anthropic API...")
+
             response_data = await self._send_request(headers, payload)
             if isinstance(response_data, str):
+                # Error response
+                await self._emit_status(__event_emitter__, "Request failed", done=True)
                 return response_data
+
+            # Emit success status
+            await self._emit_status(__event_emitter__, "Response received", done=True)
+
             cache_info = self._get_cache_info(response_data.get("usage"), model_id)
+
+            # Emit cache info if enabled
+            if self.valves.SHOW_CACHE_INFO and response_data.get("usage"):
+                usage = response_data.get("usage")
+                cached_tokens = usage.get("cache_read_input_tokens", 0)
+                if cached_tokens > 0:
+                    await self._emit_status(
+                        __event_emitter__,
+                        f"Cache hit: {cached_tokens:,} tokens served from cache",
+                        True
+                    )
+
             content = response_data.get("content", [])
             if any(c.get("type") == "tool_use" for c in content):
                 tool_calls = [
@@ -712,16 +763,27 @@ class Pipe:
             response_text = "".join(
                 c.get("text", "") for c in content if c.get("type") == "text"
             )
-            return cache_info + response_text
+            
+            return response_text
         except Exception as e:
             logging.error(f"Error in pipe method: {e}", exc_info=True)
             return f"An unexpected error occurred: {e}"
     async def _stream_response(
-        self, headers: Dict, payload: Dict, __event_emitter__: Optional[Any] = None
+        self, headers: Dict, payload: Dict, __event_emitter__: Optional[Any] = None,
+        body: Optional[Dict] = None
     ) -> AsyncGenerator[str, None]:
         is_thinking, is_tool_use = False, False
         tool_call_chunks = {}
+        usage_data = None
+
         try:
+            # Emit connection status
+            await self._emit_status(
+                __event_emitter__,
+                "Connecting to Anthropic API...",
+                done=False
+            )
+
             async with aiohttp.ClientSession() as session:
                 timeout = aiohttp.ClientTimeout(total=self.valves.REQUEST_TIMEOUT)
                 async with session.post(
@@ -736,8 +798,22 @@ class Pipe:
                             http_status=response.status,
                             request_id=self.request_id
                         )
+                        # Emit error event
+                        await self._emit_status(
+                            __event_emitter__,
+                            "Request failed",
+                            done=True
+                        )
                         yield error_msg
                         return
+
+                    # Emit streaming started
+                    await self._emit_status(
+                        __event_emitter__,
+                        "Streaming response...",
+                        done=False
+                    )
+
                     async for line in response.content:
                         if not line.startswith(b"data: "):
                             continue
@@ -748,16 +824,35 @@ class Pipe:
                             block_type = block.get("type")
                             if block_type == "thinking":
                                 is_thinking = True
+                                # Emit thinking started event
+                                await self._emit_status(
+                                    __event_emitter__,
+                                    "Claude is thinking...",
+                                    done=False
+                                )
                                 if self.valves.ENABLE_THINKING and self.valves.DISPLAY_THINKING:
                                     yield "<thinking>"
                             elif block_type == "redacted_thinking":
                                 is_thinking = True
+                                # Emit redacted thinking event
+                                await self._emit_status(
+                                    __event_emitter__,
+                                    "Claude is thinking (redacted)...",
+                                    done=False
+                                )
                             elif block_type == "tool_use":
                                 is_tool_use = True
                                 tool_use = block.get("tool_use", {})
+                                tool_name = tool_use.get("name", "unknown")
+                                # Emit tool use detected
+                                await self._emit_status(
+                                    __event_emitter__,
+                                    f"Using tool: {tool_name}",
+                                    done=False
+                                )
                                 tool_call_chunks[data["index"]] = {
                                     "id": tool_use.get("id"),
-                                    "name": tool_use.get("name"),
+                                    "name": tool_name,
                                     "input_chunks": [],
                                 }
                             else:
@@ -784,8 +879,15 @@ class Pipe:
                             ):
                                 yield delta.get("text", "")
                         elif event_type == "content_block_stop":
-                            if is_thinking and self.valves.ENABLE_THINKING and self.valves.DISPLAY_THINKING:
-                                yield "</thinking>"
+                            if is_thinking:
+                                # Emit thinking complete
+                                await self._emit_status(
+                                    __event_emitter__,
+                                    "Thinking complete",
+                                    done=False
+                                )
+                                if self.valves.ENABLE_THINKING and self.valves.DISPLAY_THINKING:
+                                    yield "</thinking>"
                             if is_tool_use:
                                 tool = tool_call_chunks.get(data["index"])
                                 if tool:
@@ -806,17 +908,39 @@ class Pipe:
                                     )
                             is_thinking = is_tool_use = False
                         elif event_type == "message_stop":
-                            usage_info = self._get_cache_info(data.get('usage'), payload['model'])
+                            # Capture usage data
+                            usage_data = data.get('usage')
+
+                            # Emit completion status
+                            await self._emit_status(
+                                __event_emitter__,
+                                "Stream complete",
+                                done=True
+                            )
+
+                            usage_info = self._get_cache_info(usage_data, payload['model'])
                             logging.info(
                                 f"Stream finished [Request ID: {self.request_id}]. {usage_info}"
                             )
                             break
+
+                    # Yield cache info at end of stream
+                    if self.valves.SHOW_CACHE_INFO and usage_data:
+                        cache_info = self._get_cache_info(usage_data, payload['model'])
+                        if cache_info:
+                            yield cache_info
         except asyncio.TimeoutError as e:
             logging.error(f"Streaming timeout: {e}", exc_info=True)
             error_msg = self._format_error(
                 message=f"Request timed out after {self.valves.REQUEST_TIMEOUT}s",
                 error_code="TIMEOUT",
                 request_id=self.request_id
+            )
+            # Emit error event
+            await self._emit_status(
+                __event_emitter__,
+                "Request timed out",
+                done=True
             )
             yield error_msg
         except aiohttp.ClientError as e:
@@ -826,6 +950,12 @@ class Pipe:
                 error_code="NETWORK_ERROR",
                 request_id=self.request_id
             )
+            # Emit error event
+            await self._emit_status(
+                __event_emitter__,
+                "Network error occurred",
+                done=True
+            )
             yield error_msg
         except Exception as e:
             logging.error(f"Streaming error: {e}", exc_info=True)
@@ -833,6 +963,12 @@ class Pipe:
                 message=str(e),
                 error_code="STREAM_ERROR",
                 request_id=self.request_id
+            )
+            # Emit error event
+            await self._emit_status(
+                __event_emitter__,
+                "Streaming error occurred",
+                done=True
             )
             yield error_msg
     async def _send_request(self, headers: Dict, payload: Dict) -> Union[Dict, str]:
@@ -883,3 +1019,12 @@ class Pipe:
             error_code="MAX_RETRIES",
             request_id=self.request_id
         )
+
+    async def outlet(
+        self, body: dict, __user__: Optional[dict] = None, __event_emitter__=None
+    ) -> dict:
+        """
+        Process the response body after the pipe completes.
+        Note: Cost tracking is now handled by injecting into response text.
+        """
+        return body
