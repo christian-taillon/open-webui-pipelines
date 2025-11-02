@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/christian/.config/**)",
+      "Read(//home/christian/.claude/**)",
+      "Bash(python3:*)",
+      "Read(//home/christian/github/open-webui-pipelines/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
