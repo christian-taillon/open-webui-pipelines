@@ -709,9 +709,9 @@ class Pipe:
                     "budget_tokens": min(default_thinking_budget, out_cap - 1),
                 }
             if "tools" in body and self.valves.ENABLE_TOOL_CHOICE:
-                payload["tools"], payload["tool_choice"] = body["tools"], body.get(
-                    "tool_choice"
-                )
+                payload["tools"] = body["tools"]
+                if body.get("tool_choice"):
+                    payload["tool_choice"] = body.get("tool_choice")
             if self.valves.ENABLE_1M_CONTEXT and base_model in {"claude-sonnet-4", "claude-sonnet-4-5"}:
                 beta_headers_needed.add(self.BETA_HEADERS["CONTEXT_1M"])
             headers = {
