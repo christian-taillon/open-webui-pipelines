@@ -62,7 +62,7 @@ import re
 import logging
 import asyncio
 import random
-from typing import List, Union, Dict, Optional, AsyncIterator, AsyncGenerator, Any
+from typing import List, Union, Dict, Optional, AsyncGenerator, Any
 import aiohttp
 from pydantic import BaseModel, Field
 from open_webui.utils.misc import pop_system_message
@@ -175,7 +175,7 @@ class Pipe:
         self._models_cache_time = None
     def _get_model_base(self, model_id: str) -> str:
         """Extracts the base name of a model for capability lookups."""
-        match = re.search(r"(claude-[\d\.\-a-z]+)-(\d{8}|latest)", model_id)
+        match = re.search(r"(claude-[\d.\-a-z]+)-(\d{8}|latest)", model_id)
         if match:
             base_id = match.group(1)
             if "sonnet-4" in base_id:
