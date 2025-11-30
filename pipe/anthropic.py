@@ -90,6 +90,8 @@ class Pipe:
         "claude-opus-4-1": 32000,
         "claude-sonnet-4": 64000,
         "claude-sonnet-4-5": 64000,
+        "claude-haiku-4-5": 64000,
+        "claude-opus-4-5": 64000,
     }
 
     # File and Content Constants
@@ -116,7 +118,7 @@ class Pipe:
 
         MAX_OUTPUT_TOKENS: bool = Field(
             default=True,
-            description="Use maximum output tokens (128K for 3.7/4.x models)"
+            description="Use 128k maximum output tokens for Sonnet 3.7)"
         )
 
         ENABLE_TOOL_CHOICE: bool = Field(
@@ -649,7 +651,7 @@ class Pipe:
                 # Unexpected errors - log and return
                 logging.error(f"Error processing message content: {e}", exc_info=True)
                 return f"Failed to process message content: {e}"
-            max_tokens_default = self.MODEL_MAX_TOKENS.get(base_model, 4096)
+            max_tokens_default = self.MODEL_MAX_TOKENS.get(base_model, 64000)
             requested_max = body.get("max_tokens")
 
             # Decide output cap and beta headers
@@ -663,6 +665,7 @@ class Pipe:
             # Determine if thinking will be enabled
             will_enable_thinking = is_thinking_variant and self.valves.ENABLE_THINKING
 
+            logging.debug(f"max_tokens: {out_cap}")
             payload = {
                 "model": model_id,
                 "messages": processed_messages,
@@ -700,9 +703,10 @@ class Pipe:
             elif system_message:
                 payload["system"] = str(system_message)
             if is_thinking_variant and self.valves.ENABLE_THINKING:
+                default_thinking_budget = 16000 if re.search(r'[a-z]-3\b', base_model) else 32000
                 payload["thinking"] = {
                     "type": "enabled",
-                    "budget_tokens": 32000 if "4" in base_model else 16000,
+                    "budget_tokens": min(default_thinking_budget, out_cap - 1),
                 }
             if "tools" in body and self.valves.ENABLE_TOOL_CHOICE:
                 payload["tools"], payload["tool_choice"] = body["tools"], body.get(
