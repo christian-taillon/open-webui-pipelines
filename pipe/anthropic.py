@@ -1,9 +1,9 @@
 """
 title: Final Unified Anthropic Pipe with Dynamic Discovery, Caching, and Streaming Tools
-authors: Balaxxe, nbellochi, Bermont, Mark Kazakov, Christian Taillon (Consolidated & Enhanced by AI)
+authors: Balaxxe, nbellochi, Bermont, Mark Kazakov, Christian Taillon, Johan Grande (Consolidated & Enhanced by AI)
 author_url: https://github.com/christian-taillon
 funding_url: https://github.com/open-webui
-version: 8.5
+version: 8.6
 license: MIT
 requirements: pydantic>=2.0.0, aiohttp>=3.8.0
 environment_variables:
@@ -13,9 +13,15 @@ environment_variables:
     - ANTHROPIC_REQUEST_TIMEOUT (optional, default: "300"): API request timeout in seconds
     - ANTHROPIC_MODEL_CACHE_TTL (optional, default: "3600"): Model list cache TTL in seconds
     - LOG_LEVEL (optional, default: "INFO"): Logging level
+
 This script is the definitive, all-in-one integration for Anthropic models in OpenWebUI. It
 combines the best features from multiple community scripts into a single, robust, and
 future-proof solution.
+
+Changelog v8.6:
+- Add Opus 4.5, fix max_tokens/thinking.budget_tokens conflict
+- Add effort parameter support
+
 Changelog v8.5:
 - Removed cost tracking functionality (ENABLE_COST_TRACKING valve, MODEL_PRICING, cost calculation methods)
 - Removed cost display from responses and event emissions
@@ -39,17 +45,19 @@ Changelog v8.2:
 - Added Claude 4.5 one-sampler logic with configurable temperature/top_p preference
 - Updated system message handling with new _prepare_system_blocks method
 - Fixed top_k logic to exclude when thinking is enabled (incompatible parameter)
+
 Changelog v8.1:
 - FIX: Corrected max_tokens for 128K models from 131,072 to the correct 128,000 limit.
 - Added Full Streaming Tool Use: Correctly handles and streams `tool_use` events.
 - Corrected Non-Streaming Tool Parsing: Fixed a bug in parsing tool calls from non-streamed responses.
+
 Key Features:
 - Dynamic Model Discovery: Fetches models directly from the Anthropic API (`/v1/models`)
   with a graceful fallback to a static list, ensuring it's always up-to-date.
 - Asynchronous Core: Uses `aiohttp` for high-performance, non-blocking API calls.
 - Complete Feature Set:
-    - Extended Thinking: With configurable budgets.
-    - 128K Output Tokens: For Claude 3.7 and 4 models.
+    - Extended Thinking: With configurable budgets and effort.
+    - 128K Output Tokens: For Claude 3.7.
     - Function Calling / Tool Use: Fully supported in both streaming and non-streaming modes.
 - Multi-Modal Support: Image and PDF document processing.
 - Intelligent Caching: Reduces costs and latency, with optional display of savings.
@@ -77,6 +85,7 @@ class Pipe:
         "PDF": "pdfs-2024-09-25",
         "OUTPUT_128K": "output-128k-2025-02-19",
         "CONTEXT_1M": "context-1m-2025-08-07",
+        "EFFORT": "effort-2025-11-24",
     }
     # Static capability metadata to enrich the dynamic model list
     MODEL_MAX_TOKENS = {
@@ -114,6 +123,11 @@ class Pipe:
         DISPLAY_THINKING: bool = Field(
             default=True,
             description="Display Claude's thinking process in chat (when thinking enabled)"
+        )
+
+        ENABLE_EFFORT: bool = Field(
+            default=True,
+            description="Apply Reasoning Effort parameter (beta, Opus 4.5 only)"
         )
 
         MAX_OUTPUT_TOKENS: bool = Field(
@@ -702,12 +716,21 @@ class Pipe:
                     beta_headers_needed.add(self.BETA_HEADERS["CACHING"])
             elif system_message:
                 payload["system"] = str(system_message)
+
             if is_thinking_variant and self.valves.ENABLE_THINKING:
                 default_thinking_budget = 16000 if re.search(r'[a-z]-3\b', base_model) else 32000
                 payload["thinking"] = {
                     "type": "enabled",
                     "budget_tokens": min(default_thinking_budget, out_cap - 1),
                 }
+            if self.valves.ENABLE_EFFORT and body.get("reasoning_effort") and model_id.startswith("claude-opus-4-5"):
+                effort = body.get("reasoning_effort").lower()
+                if effort in ["low", "medium", "high"]:
+                    payload["output_config"] = {"effort": effort}
+                    beta_headers_needed.add(self.BETA_HEADERS["EFFORT"])
+                else:
+                    logging.info(f"Ignoring invalid effort '{effort}'")
+
             if "tools" in body and self.valves.ENABLE_TOOL_CHOICE:
                 payload["tools"] = body["tools"]
                 if body.get("tool_choice"):
@@ -721,6 +744,8 @@ class Pipe:
             }
             if beta_headers_needed:
                 headers["anthropic-beta"] = ",".join(sorted(list(beta_headers_needed)))
+            logging.debug("payload: %s", payload)
+
             if payload["stream"]:
                 return self._stream_response(headers, payload, __event_emitter__, body)
             
