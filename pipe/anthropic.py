@@ -19,7 +19,7 @@ combines the best features from multiple community scripts into a single, robust
 future-proof solution.
 
 Changelog v8.6:
-- Add Opus 4.5, fix max_tokens/thinking.budget_tokens conflict
+- Add Haiku and Opus 4.5, fix max_tokens/thinking.budget_tokens conflict
 - Add effort parameter support
 
 Changelog v8.5:
