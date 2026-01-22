@@ -10,7 +10,6 @@ import os
 import requests
 from datetime import datetime
 import json
-from requests import get
 from bs4 import BeautifulSoup
 import concurrent.futures
 from html.parser import HTMLParser
@@ -19,7 +18,7 @@ import re
 import unicodedata
 from pydantic import BaseModel, Field
 import asyncio
-from typing import Callable, Any
+from typing import Callable, Any, Optional
 
 
 class HelpFunctions:
