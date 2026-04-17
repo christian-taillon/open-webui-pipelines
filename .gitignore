@@ -187,3 +187,4 @@ gha-creds-*.json
 # Local tooling and scratch state
 .codex
 node_modules/
+scripts/openwebui_tool_harness.py
