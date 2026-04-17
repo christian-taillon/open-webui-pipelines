@@ -180,3 +180,10 @@ GEMINI.md
 
 .gemini/
 gha-creds-*.json
+
+# Local OpenCode bridge artifacts
+.opencode/
+
+# Local tooling and scratch state
+.codex
+node_modules/

@@ -87,16 +87,30 @@ class Tools:
             "hash": r"\b[a-fA-F0-9]{32}\b|\b[a-fA-F0-9]{40}\b|\b[a-fA-F0-9]{64}\b",
             "url": r"https?://[^\s<>\"{}|\\^`\[\]]+",
             "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
+            "cve": r"\bCVE-\d{4}-\d{4,}\b",
         }
         self._available_fields_cache = {}
 
-    def get_headers(self, path: str, method: str = "GET") -> Dict[str, str]:
+    def _build_signature_path(
+        self, path: str, query_params: Optional[Dict[str, Any]] = None
+    ) -> str:
+        if not query_params:
+            return path
+        return f"{path}?{urlencode(query_params)}"
+
+    def get_headers(
+        self,
+        path: str,
+        method: str = "GET",
+        query_params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, str]:
         """Generate authentication headers based on configured method."""
         if self.valves.auth_method == AuthMethod.token:
             return {"Authorization": f"TC-Token {self.valves.tc_api_token}"}
         else:
             timestamp = str(int(time.time()))
-            signature = f"{path}:{method}:{timestamp}"
+            signature_path = self._build_signature_path(path, query_params)
+            signature = f"{signature_path}:{method}:{timestamp}"
             hmac_signature = base64.b64encode(
                 hmac.new(
                     self.valves.tc_api_secret_key.encode("utf-8"),
@@ -215,6 +229,8 @@ class Tools:
             excluded = ["example.com", "google.com", "microsoft.com", "amazon.com"]
             if not any(excl in indicator.lower() for excl in excluded):
                 return "Host"
+        elif re.match(self.ioc_patterns["cve"], indicator):
+            return "Vulnerability"
 
         return "Unknown"
 
@@ -253,7 +269,11 @@ class Tools:
                 if fields_param:
                     url += f"?{fields_param}"
 
-            headers = self.get_headers(endpoint.split("?")[0], "GET")
+            headers = self.get_headers(
+                endpoint.split("?")[0],
+                "GET",
+                params if self.valves.api_version == "v3" else None,
+            )
             response = requests.get(
                 url, headers=headers, timeout=30
             )  # Increased timeout for more data
@@ -309,8 +329,16 @@ class Tools:
                     "error": "unknown_type",
                     "message": f"Could not determine the type of indicator: {indicator}",
                     "indicator": indicator,
+                    "hint": "Use lookup_entity() for ThreatConnect objects that may be Groups, such as APT names or CVE identifiers.",
                 },
                 indent=2,
+            )
+        if ioc_type == "Vulnerability":
+            return await self.lookup_entity(
+                query=indicator,
+                group_types="Vulnerability",
+                __user__=__user__,
+                __event_emitter__=__event_emitter__,
             )
 
         # First, get available fields for this endpoint
@@ -354,6 +382,32 @@ class Tools:
 
         # Return the full, unmodified API response as formatted JSON
         return json.dumps(api_response, indent=2)
+
+    async def lookup_entity(
+        self,
+        query: str,
+        group_types: str = "Adversary,Threat,Intrusion Set,Malware,Tool,Campaign,Report,Incident,Vulnerability",
+        __user__: Optional[dict] = None,
+        __event_emitter__: Callable[[dict], Awaitable[None]] = None,
+    ) -> str:
+        """
+        Look up a ThreatConnect object by routing indicator-like values to indicator lookup
+        and other values to group search.
+        """
+        query = query.strip()
+        if not query:
+            return json.dumps({"error": "query is required"}, indent=2)
+
+        detected_type = self.detect_ioc_type(query)
+        if detected_type != "Unknown":
+            return await self.lookup_ioc(query, __user__, __event_emitter__)
+
+        return await self.search_groups(
+            keywords=query,
+            group_types=group_types,
+            __user__=__user__,
+            __event_emitter__=__event_emitter__,
+        )
 
     async def bulk_lookup_iocs(
         self,
@@ -526,7 +580,7 @@ class Tools:
             if fields_param:
                 url += f"&{fields_param}"
 
-            headers = self.get_headers(endpoint, "GET")
+            headers = self.get_headers(endpoint, "GET", params)
             response = requests.get(url, headers=headers, timeout=30)
 
             if response.status_code == 200:
@@ -570,3 +624,103 @@ class Tools:
 
         return json.dumps(result, indent=2)
 
+    async def search_groups(
+        self,
+        keywords: str,
+        group_types: str = "",
+        limit: int = 10,
+        __user__: Optional[dict] = None,
+        __event_emitter__: Callable[[dict], Awaitable[None]] = None,
+    ) -> str:
+        """
+        Search ThreatConnect groups by summary, optionally constrained to group types.
+        """
+        if __event_emitter__:
+            await __event_emitter__(
+                {
+                    "type": "status",
+                    "data": {
+                        "description": f"Searching ThreatConnect groups: {keywords}",
+                        "done": False,
+                    },
+                }
+            )
+
+        type_list = [group_type.strip() for group_type in group_types.split(",") if group_type.strip()]
+        if not type_list:
+            type_list = [
+                "Adversary",
+                "Threat",
+                "Intrusion Set",
+                "Malware",
+                "Tool",
+                "Campaign",
+                "Report",
+                "Incident",
+                "Vulnerability",
+            ]
+
+        merged: List[Dict[str, Any]] = []
+        seen_ids = set()
+        errors: List[Dict[str, Any]] = []
+
+        for group_type in type_list:
+            try:
+                fields_param = self.build_fields_params("groups")
+                endpoint = f"/api/{self.valves.api_version}/groups"
+                params = {
+                    "resultLimit": min(limit, 100),
+                    "tql": f'summary CONTAINS "{keywords}" AND typeName = "{group_type}"',
+                }
+                if self.valves.owner:
+                    params["owner"] = self.valves.owner
+
+                url = f"{self.valves.tc_api_url}{endpoint}?{urlencode(params)}"
+                if fields_param:
+                    url += f"&{fields_param}"
+
+                headers = self.get_headers(endpoint, "GET", params)
+                response = requests.get(url, headers=headers, timeout=30)
+
+                if response.status_code == 200:
+                    result = response.json()
+                    for item in result.get("data", []):
+                        item_id = item.get("id")
+                        if item_id and item_id not in seen_ids:
+                            seen_ids.add(item_id)
+                            merged.append(item)
+                else:
+                    errors.append(
+                        {
+                            "group_type": group_type,
+                            "status": response.status_code,
+                            "response_text": response.text,
+                        }
+                    )
+            except Exception as e:
+                errors.append({"group_type": group_type, "error": str(e)})
+
+        result: Dict[str, Any] = {"status": "Success", "data": merged}
+        if errors and not merged:
+            result = {
+                "error": "ThreatConnect group search failed for one or more group types.",
+                "details": errors,
+            }
+
+        result["_metadata"] = {
+            "keywords": keywords,
+            "group_types": type_list,
+            "limit": limit,
+            "query_time": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            "api_version": self.valves.api_version,
+        }
+
+        if __event_emitter__:
+            await __event_emitter__(
+                {
+                    "type": "status",
+                    "data": {"description": "Group search complete", "done": True},
+                }
+            )
+
+        return json.dumps(result, indent=2)

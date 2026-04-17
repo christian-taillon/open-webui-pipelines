@@ -103,12 +103,12 @@ Located in the `filter/` directory. Copy the .py contents into OpenWebUI -> Work
 ### ThreatConnect Agentic Search
 - File: tools/threatconnect_agentic_search.py
 - Status: Production Ready (v0.5)
-- Purpose: Intelligent IOC search using ThreatConnect APIs.
+- Purpose: ThreatConnect entity search across Indicators and Groups.
 
 ### ThreatConnect IOC Lookup Tool
 - File: tools/threatconnect_ioc_lookup_tool.py
 - Status: Production Ready (v0.3)
-- Purpose: Direct IOC lookup via ThreatConnect API.
+- Purpose: Direct ThreatConnect lookup with simple indicator-vs-group routing.
 
 ---
 
@@ -190,12 +190,12 @@ Located in the `tools/` directory.
   - Notes: Requires ThreatConnect API credentials; inspect `filter/threatconnect_ioc_enrichment.py` (including `format_indicator_v2` and `generate_tc_auth_headers`) to understand authorization and response formatting
 
 - ThreatConnect Agentic Search
-  - Use: Intelligent IOC search with ThreatConnect APIs
-  - Notes: Requires ThreatConnect API credentials; handles complex search patterns
+  - Use: Search ThreatConnect entities; use `lookup_ioc()` for indicator-like values and `lookup_entity()` for APT names, CVEs, malware names, and report titles
+  - Notes: Requires ThreatConnect API credentials; supports both Indicator and Group search flows
 
 - ThreatConnect IOC Lookup Tool
-  - Use: Direct IOC lookup via ThreatConnect API
-  - Notes: Simple, direct IOC queries using ThreatConnect
+  - Use: Direct ThreatConnect lookup; use `lookup_ioc()` for true indicators and `lookup_entity()` for Group-like values such as `APT28` or `CVE-2026-40024`
+  - Notes: Supports simple indicator-vs-group routing and ThreatConnect v3 access-key signing
 
 - Anthropic Manifold Pipe
   - Use: production-grade analysis with Anthropic models
